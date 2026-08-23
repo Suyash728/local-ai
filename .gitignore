@@ -33,3 +33,7 @@ input/
 # --- HF cache leftovers ---
 *.incomplete
 *.lock
+
+# scratch from the model pulls
+.pull-models.sh
+.pull-models.log

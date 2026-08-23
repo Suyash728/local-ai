@@ -1,0 +1,52 @@
+# Continue.dev config for the local Ollama stack.
+# Install:  cp ~/AI/configs/continue-config.yaml ~/.continue/config.yaml
+# Requires: the VS Code extension "Continue" (Continue.continue)
+#
+# Ollama must be running:  systemctl --user start ollama
+
+name: local-ollama
+version: 0.0.1
+schema: v1
+
+models:
+  # --- chat / edit / agent -------------------------------------------------
+  - name: qwen2.5-coder-14b
+    provider: ollama
+    model: qwen2.5-coder:14b-instruct-q4_K_M
+    apiBase: http://127.0.0.1:11434
+    roles: [chat, edit, apply]
+    defaultCompletionOptions:
+      # 16k, not the 32k the model supports: at q8_0 KV that is ~1.5 GiB of
+      # cache on top of 8.37 GiB of weights, which fits 14.4 GiB with room.
+      # Raising this to 32768 costs ~1.5 GiB more and still fits, but leaves
+      # less headroom if the desktop is busy.
+      contextLength: 16384
+
+  # --- general purpose -----------------------------------------------------
+  - name: gemma3-12b
+    provider: ollama
+    model: gemma3:12b
+    apiBase: http://127.0.0.1:11434
+    roles: [chat]
+
+  # --- tab autocomplete ----------------------------------------------------
+  # Base (not instruct) is correct here: FIM completion, not chat. Small is
+  # the point - autocomplete is latency-bound, a 14B would feel awful.
+  - name: qwen2.5-coder-1.5b
+    provider: ollama
+    model: qwen2.5-coder:1.5b-base
+    apiBase: http://127.0.0.1:11434
+    roles: [autocomplete]
+
+  # --- @codebase indexing --------------------------------------------------
+  - name: nomic-embed
+    provider: ollama
+    model: nomic-embed-text
+    apiBase: http://127.0.0.1:11434
+    roles: [embed]
+
+context:
+  - provider: code
+  - provider: diff
+  - provider: terminal
+  - provider: codebase

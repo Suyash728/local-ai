@@ -1,0 +1,10 @@
+# Aider config for the local stack.  (Aider is not installed yet:  uv tool install aider-chat)
+# Install:  cp ~/AI/configs/aider.conf.yml ~/.aider.conf.yml
+#
+# Aider also needs OLLAMA_API_BASE in the environment. Add to fish:
+#   set -Ux OLLAMA_API_BASE http://127.0.0.1:11434
+
+model: ollama_chat/qwen2.5-coder:14b-instruct-q4_K_M
+weak-model: ollama_chat/qwen2.5-coder:1.5b-base
+auto-commits: false
+gitignore: false

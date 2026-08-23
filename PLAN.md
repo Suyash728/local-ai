@@ -1,7 +1,7 @@
 # Local AI Stack — Audit & Build Plan
 
 **Machine:** CachyOS / Ryzen 5 5600 / RTX 5060 Ti 16G (sm_120) / 31 GiB RAM
-**Audited:** 2026-08-23 · **Status:** PHASE 2 complete, awaiting approval for PHASE 3
+**Audited:** 2026-08-23 · **Status:** Track A COMPLETE & VERIFIED. Track B not started. Track C deferred.
 **Read `CLAUDE.md` first** for the operating rules. This file is the reasoning and the checklist.
 
 ---
@@ -305,8 +305,10 @@ Order matters: **create subvolume → `chattr +C` → only then populate.** `+C`
 retroactively. Moving `FLUX.1-dev-NVFP4` across the subvolume boundary is a real 8.56 GiB copy rather
 than a rename — that copy is precisely what applies `+C` to the file, so it's worth doing once.
 
-**One sudo check needed first:** `sudo snapper list-configs` — to see whether `@home` has a snapper
-config at all. If it doesn't, the subvolume is belt-and-braces rather than essential (still do it).
+**RESOLVED 2026-08-23:** `snapper list-configs` lists only `root -> /`, but `@home` **is** being
+snapshotted by another mechanism (btrfs-assistant / manual). So the nested subvolume is
+**load-bearing, not optional** — without it the weights would sit in a snapshotted subvolume where
+`+C` silently stops applying after each snapshot. Verified: every ollama blob carries the `C` flag.
 
 ### Environment (fish — persistent universal variables)
 
@@ -371,19 +373,19 @@ If you change a value, change it in **both** places.
 Track A first (fastest win), then B. Stop and report on any failure.
 
 **0 — Reclaim & prepare**
-- [ ] `sudo snapper list-configs` — check whether `@home` is snapshotted
-- [ ] `find ~/.cache/huggingface/hub -name '*.incomplete' -delete` → +4.68 GiB
-- [ ] Confirm deletion of Qwen BF16 cache → +27.52 GiB
-- [ ] `sudo paccache -rk1` → ~+4 GiB
-- [ ] Create `~/AI/models` subvolume, `chattr +C`, create subdirs
-- [ ] Set fish universal variables
+- [x] `sudo snapper list-configs` — check whether `@home` is snapshotted
+- [x] `find ~/.cache/huggingface/hub -name '*.incomplete' -delete` → +4.68 GiB
+- [x] Confirm deletion of Qwen BF16 cache → +27.52 GiB
+- [~] `sudo paccache -rk1` → ~+4 GiB  *(skipped: not needed, ended at 115 GiB free)*
+- [x] Create `~/AI/models` subvolume, `chattr +C`, create subdirs
+- [x] Set fish universal variables
 
 **A — Ollama**
-- [ ] `sudo pacman -S ollama ollama-cuda`
-- [ ] `sudo systemctl mask ollama.service`; write + start the user unit
-- [ ] `ollama pull` × 3 (+ optional embed model)
-- [ ] ✅ **PROOF:** a real streamed completion from `qwen2.5-coder:14b`, `nvidia-smi` showing it resident
-- [ ] Write Continue.dev / Zed / Aider config snippets
+- [x] `sudo pacman -S ollama ollama-cuda`
+- [x] write + start the user unit  *(mask skipped: system unit already `disabled`+`inactive`)*
+- [x] `ollama pull` × 3 (+ optional embed model)
+- [x] ✅ **PROOF:** a real streamed completion from `qwen2.5-coder:14b`, `nvidia-smi` showing it resident
+- [x] Write Continue.dev / Zed / Aider config snippets
 
 **B — ComfyUI**
 - [ ] `uv venv ~/AI/comfy-venv-cu130 --python 3.12`
@@ -399,6 +401,6 @@ Track A first (fastest win), then B. Stop and report on any failure.
 **C — Video:** deferred by decision. Revisit at 64 GiB RAM.
 
 **D — Docs**
-- [ ] Write `~/AI/README.md`: what's installed, where models live, how to start each service,
+- [x] Write `~/AI/README.md`: what's installed, where models live, how to start each service,
       fallback launch profiles
 - [ ] Commit

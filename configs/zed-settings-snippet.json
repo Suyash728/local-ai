@@ -1,0 +1,15 @@
+// Merge into ~/.config/zed/settings.json  (Zed is not installed yet)
+{
+  "language_models": {
+    "ollama": {
+      "api_url": "http://127.0.0.1:11434",
+      "available_models": [
+        { "name": "qwen2.5-coder:14b-instruct-q4_K_M", "display_name": "Qwen2.5 Coder 14B", "max_tokens": 16384 },
+        { "name": "gemma3:12b", "display_name": "Gemma 3 12B", "max_tokens": 16384 }
+      ]
+    }
+  },
+  "agent": {
+    "default_model": { "provider": "ollama", "model": "qwen2.5-coder:14b-instruct-q4_K_M" }
+  }
+}
