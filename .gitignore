@@ -1,0 +1,35 @@
+# This repo tracks documentation and configs ONLY.
+# Never weights, never venvs, never generated output.
+
+# --- Python venvs ---
+comfy-venv/
+comfy-venv-cu130/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# --- Model weights (all formats, anywhere) ---
+models/
+FLUX.1-dev-NVFP4/
+*.safetensors
+*.gguf
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.onnx
+
+# --- Application checkouts (upstream repos, not ours) ---
+ComfyUI/
+
+# --- Caches & generated output ---
+.cache/
+output/
+temp/
+input/
+*.log
+
+# --- HF cache leftovers ---
+*.incomplete
+*.lock
