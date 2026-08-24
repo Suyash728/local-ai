@@ -7,9 +7,9 @@ What is installed, where things live, and how to start them.
 |---|---|
 | Machine | Ryzen 5 5600 · RTX 5060 Ti 16G (sm_120) · 31 GiB RAM · CachyOS |
 | Track A — LLMs | ✅ **DONE & VERIFIED** (2026-08-23) |
-| Track B — ComfyUI | ⬜ not started |
+| Track B — ComfyUI | ✅ **DONE & VERIFIED** (2026-08-24) |
 | Track C — Video | ⛔ deferred by decision (needs 64 GiB RAM) |
-| Free disk | ~115 GiB |
+| Free disk | ~110 GiB |
 
 ---
 
@@ -156,6 +156,109 @@ sudo systemctl mask ollama.service    # system unit is already disabled+inactive
 
 ---
 
+## Quick start — ComfyUI
+
+```fish
+systemctl --user stop ollama          # free VRAM first: FLUX needs ~12.3 GiB
+systemctl --user start comfyui        # then open http://127.0.0.1:8188
+systemctl --user stop comfyui         # releases VRAM
+```
+
+> Same rule as Ollama: **not enabled at boot, down after every reboot/logout.** By design.
+
+| Command | What it does |
+|---|---|
+| `systemctl --user start\|stop\|restart comfyui` | control the server |
+| `journalctl --user -u comfyui -f` | live log |
+| `curl -s localhost:8188/system_stats` | version + live VRAM |
+
+**Ollama and ComfyUI cannot both hold a model.** 9.9 GiB (Qwen 14B) + 12.3 GiB (FLUX) far exceeds
+15.5 GiB. Stop one before starting the other.
+
+---
+
+## Installed — Track B
+
+### Environment
+`~/AI/comfy-venv-cu130/` — uv-managed Python 3.12.13, **torch 2.13.0+cu130** / torchvision
+0.28.0+cu130 / torchaudio 2.11.0+cu130, triton 3.7.1.
+The old cu129 venv has been deleted; this is the only one.
+
+`~/AI/ComfyUI/` — ComfyUI 0.33.0 (`b78cec8`), custom node `ComfyUI-GGUF` (city96, 6 nodes),
+`comfy-kitchen 0.2.31` + `comfy-aimdo 0.4.13`.
+
+### Models (14.2 GiB, in `~/AI/models/comfyui/`)
+
+| File | Size | Where |
+|---|---:|---|
+| `diffusion_models/flux1-dev-nvfp4.safetensors` | 8.56 GiB | transformer only — 1464 tensors |
+| `text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors` | 4.80 GiB | 389 tensors, mixed F32/F16/F8_E4M3 |
+| `text_encoders/clip_l.safetensors` | 0.23 GiB | 196 tensors, F16 |
+| `vae/ae.safetensors` | 0.31 GiB | 244 tensors, F32 |
+
+The NVFP4 file is **the transformer alone** — verified by parsing its header: zero VAE, T5 or CLIP
+tensors. The other three are not optional.
+
+### Launch profiles
+
+| Profile | How | When |
+|---|---|---|
+| **SDPA (default)** | already in the unit: `--use-pytorch-cross-attention` | Always works. Stay here. |
+| Low VRAM | add `--lowvram` | If a workflow OOMs |
+| SageAttention | `--use-sage-attention` | **Only after a successful source build.** No prebuilt sm_120 wheel targets torch 2.13. `nvcc` is at `/opt/cuda/bin/nvcc`; you would also need `cmake` + `ninja` (~90 MiB, not installed). Never the default. |
+
+**NVFP4 acceleration is independent of the attention backend** — it comes from the cu130 torch build
+plus `comfy-kitchen`. `--use-pytorch-cross-attention` does not disable it.
+
+**Never install xformers.** PyPI wheels stop at sm_89 and it silently downgrades torch.
+
+### Measured on this machine — 2026-08-24
+
+FLUX.1-dev NVFP4, 1024x1024, 20 steps, euler/simple, guidance 3.5:
+
+| | |
+|---|---|
+| Cold (incl. model load) | **25.3 s** |
+| Warm | **17.1 s** (~1.17 it/s) |
+| Peak VRAM | **12.3 GiB** of 15.5 |
+
+Raw kernel A/B, 4096^3 GEMM: **bf16 3.25 ms vs nvfp4 0.49 ms = 6.68x**. End-to-end sampling gains
+are much smaller — attention, norms, VAE and text encoding are not FP4.
+
+ComfyUI log confirms the path is live:
+```
+Found quantization metadata version 1
+Detected mixed precision quantization
+Native ops: convrot_w4a4, float8_e4m3fn, int8_tensorwise, mxfp8, float8_e5m2, asym_w4a8_int8, nvfp4
+```
+
+---
+
+## Gotchas learned the hard way
+
+**ComfyUI's `requirements.txt` will clobber your torch.** It lists bare `torch`, `torchvision`,
+`torchaudio`, which resolve from PyPI and overwrite the cu130 build. Install from the filtered
+`.comfy-reqs-notorch.txt` (keeps `torchsde`, which is a different package), and **verify
+`torch.__version__` still ends in `+cu130` afterwards.**
+
+**HF's Xet downloader can deadlock.** It wedged at 2.07/5.15 GiB — 0 bytes for 75 s, process in
+`futex_wait` with 18 idle ESTABLISHED sockets. Fix: `HF_HUB_DISABLE_XET=1` and
+`HF_HUB_DOWNLOAD_TIMEOUT=60`. The Xet and plain paths use different partial-file names and cannot
+resume each other, so a switch costs the partial.
+
+**`du` lies about the uv cache on Btrfs.** uv writes reflink copies, so cache and venv share
+extents. `uv cache clean` reported removing 12.9 GiB but `df` gained only 5.4 GiB. Judge reclaim by
+`df`, never `du`.
+
+**Don't `pkill -f` a string that appears in your own command line** — it matches the killing shell.
+
+### HF authentication
+Token stored at `~/AI/models/hf/token` (perms 0600, inside the gitignored `models/` subvolume).
+`hf auth whoami` → `NotSoPro`. Read-only scope + `canReadGatedRepos`, so gated repos such as
+`black-forest-labs/FLUX.1-dev` are reachable directly.
+
+---
+
 ## Verification record — 2026-08-23
 
 - `library=CUDA compute=12.0 name=CUDA0 ... libdirs=ollama,cuda_v13 driver=13.3` → sm_120 on the CUDA 13 backend
@@ -164,4 +267,13 @@ sudo systemctl mask ollama.service    # system unit is already disabled+inactive
 - All 4 models generate/embed correctly; 0 pull failures
 - Idle (server up, no model): ollama absent from `nvidia-smi` compute list, ~9 W
 
-**Not verified:** any Track B claim. ComfyUI, cu130 torch and NVFP4 are untouched.
+### Track B — 2026-08-24
+- `torch 2.13.0+cu130`, `torch.version.cuda 13.0`, `sm_120` in arch list, `get_device_capability() == (12, 0)`
+- live fp16 4096^2 matmul, bf16 matmul, fp8_e4m3fn cast — all executed on device
+- `comfy_kitchen` **cuda** backend reports `quantize_nvfp4` / `scaled_mm_nvfp4`; both executed on device
+- ComfyUI reached `To see the GUI go to: http://127.0.0.1:8188`
+- **A real FLUX NVFP4 image rendered**: `ComfyUI/output/flux_nvfp4_verify_00001_.png`,
+  1024x1024, std 47.7, 232,966 unique colours — inspected, coherent subject matter
+- torch re-verified as `+cu130` after every dependency install
+
+**Still not done:** Track C (video) remains deferred. SageAttention is not built.

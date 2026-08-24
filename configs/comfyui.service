@@ -1,0 +1,21 @@
+[Unit]
+Description=ComfyUI (user session, on-demand)
+Documentation=https://github.com/comfyanonymous/ComfyUI
+After=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/suyash/AI/ComfyUI
+# DEFAULT PROFILE = SDPA. Always works, zero build risk. NVFP4 acceleration
+# comes from comfy-kitchen + the cu130 torch build and is independent of the
+# attention backend, so this flag does NOT disable it.
+ExecStart=/home/suyash/AI/comfy-venv-cu130/bin/python main.py \
+    --listen 127.0.0.1 --port 8188 --use-pytorch-cross-attention
+Restart=on-failure
+RestartSec=3
+
+# systemd does NOT inherit fish universal variables - repeat them here.
+Environment=HF_HOME=/home/suyash/AI/models/hf
+
+[Install]
+WantedBy=default.target

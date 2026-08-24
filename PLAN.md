@@ -1,7 +1,7 @@
 # Local AI Stack — Audit & Build Plan
 
 **Machine:** CachyOS / Ryzen 5 5600 / RTX 5060 Ti 16G (sm_120) / 31 GiB RAM
-**Audited:** 2026-08-23 · **Status:** Track A COMPLETE & VERIFIED. Track B not started. Track C deferred.
+**Audited:** 2026-08-23 · **Status:** Tracks A and B COMPLETE & VERIFIED (2026-08-24). Track C deferred.
 **Read `CLAUDE.md` first** for the operating rules. This file is the reasoning and the checklist.
 
 ---
@@ -388,19 +388,19 @@ Track A first (fastest win), then B. Stop and report on any failure.
 - [x] Write Continue.dev / Zed / Aider config snippets
 
 **B — ComfyUI**
-- [ ] `uv venv ~/AI/comfy-venv-cu130 --python 3.12`
-- [ ] Install torch 2.13.0+cu130 stack
-- [ ] ✅ **GATE:** `get_device_capability() == (12, 0)` + `sm_120` in arch list + live matmul
-- [ ] Clone ComfyUI, install deps without disturbing torch
-- [ ] `comfy-kitchen[cublas]`, `ComfyUI-GGUF`, `gguf`
-- [ ] Move FLUX NVFP4 into the model store; download t5 fp8 + clip_l + ae
-- [ ] Write `extra_model_paths.yaml`; write + start the user unit
-- [ ] ✅ **PROOF:** server starts, a FLUX NVFP4 image actually renders
-- [ ] Delete old `comfy-venv` (+6.9 GiB), `uv cache prune` (+~7 GiB)
+- [x] `uv venv ~/AI/comfy-venv-cu130 --python 3.12`
+- [x] Install torch 2.13.0+cu130 stack
+- [x] ✅ **GATE:** `get_device_capability() == (12, 0)` + `sm_120` in arch list + live matmul
+- [x] Clone ComfyUI, install deps without disturbing torch
+- [x] `comfy-kitchen[cublas]`, `ComfyUI-GGUF`, `gguf`
+- [x] Move FLUX NVFP4 into the model store; download t5 fp8 + clip_l + ae
+- [x] Write `extra_model_paths.yaml`; write + start the user unit
+- [x] ✅ **PROOF:** server starts, a FLUX NVFP4 image actually renders
+- [x] Delete old `comfy-venv` (7.0 GiB) + `uv cache clean`  *(reported 12.9 GiB removed but `df` gained only 5.4 GiB — uv uses Btrfs reflinks, so cache and venv shared extents)*
 
 **C — Video:** deferred by decision. Revisit at 64 GiB RAM.
 
 **D — Docs**
 - [x] Write `~/AI/README.md`: what's installed, where models live, how to start each service,
       fallback launch profiles
-- [ ] Commit
+- [x] Commit

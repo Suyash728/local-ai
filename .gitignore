@@ -1,6 +1,9 @@
 # This repo tracks documentation and configs ONLY.
 # Never weights, never venvs, never generated output.
 
+#---Environment variables---
+.env
+
 # --- Python venvs ---
 comfy-venv/
 comfy-venv-cu130/
@@ -37,3 +40,8 @@ input/
 # scratch from the model pulls
 .pull-models.sh
 .pull-models.log
+
+# Track B scratch
+.trackb-*.sh
+.trackb-*.log
+.comfy-reqs-notorch.txt

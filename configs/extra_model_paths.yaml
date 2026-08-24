@@ -1,0 +1,23 @@
+# Point ComfyUI at the shared model store on the dedicated Btrfs subvolume.
+# Every weight lives under ~/AI/models/ so nothing is ever downloaded twice.
+# See ~/AI/README.md.
+
+comfyui:
+    base_path: /home/suyash/AI/models/comfyui/
+    is_default: true
+
+    diffusion_models: |
+        diffusion_models/
+        unet/
+    text_encoders: |
+        text_encoders/
+        clip/
+    vae: vae/
+    loras: loras/
+    clip_vision: clip_vision/
+    checkpoints: checkpoints/
+    controlnet: controlnet/
+    upscale_models: upscale_models/
+    embeddings: embeddings/
+    style_models: style_models/
+    vae_approx: vae_approx/
