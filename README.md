@@ -279,20 +279,23 @@ something a token bypasses).
   128 channels at 16x spatial downscale, vs FLUX.1's 16 channels at 8x.
 - `FluxGuidance` node is shared with FLUX.1 — no separate guidance node needed.
 
-**⚠️ Guidance value matters more here than on FLUX.1, and getting it wrong produces skin
-artifacts, not just a style shift.** The first verification render used `guidance: 4.0` and
-produced blotchy, rash-like red patches across the cheeks — a real defect initially and wrongly
-described as "convincing windburn" in this file. At `guidance: 2.0` (same value tuned for FLUX.1)
-three of five test scenes came out clean, but **one still showed a clear artifact**: dark blotches
-on the subject's cheek that matched a stain in the identical position on her shirt — a texture
-bleed-through, not intentional dirt or blemishes. A second scene was borderline (a few marks near
-the mouth that could pass as skin detail or could be an artifact).
+**⚠️ Update — root cause found, corrected same day.** The first verification render used
+`guidance: 4.0` and produced blotchy red patches on the cheeks, at the time wrongly described here
+as "convincing windburn." Dropping guidance to 2.0 fixed 3 of 5 test scenes but not all — one
+(`grocery_aisle`) still showed a clear defect: dark blotches on the cheek in the exact same
+position as a stain on the subject's hoodie, a texture bleed-through between garment and face.
 
-**Current honest assessment: klein-9B is not yet reliable for skin rendering on this machine.**
-Roughly 3 of 5 renders are clean; the other 1-2 need a re-roll. Lower guidance clearly helps but
-does not fully fix it. Until this is understood better (prompt language? seed sensitivity? a
-guidance value below 2.0?), treat every klein-9B face render as unverified until you've actually
-looked at it — do not assume it rendered correctly.
+**The actual cause was isolated by removing skin-imperfection language from the prompt** —
+"blemishes," "scars," "under-eye shadows" — while keeping every other realism cue (lighting,
+framing, wardrobe, "not looking at camera") unchanged. Result: **5 of 5 clean, including the exact
+scene that failed twice before.** The prompt phrase, not the guidance value, was driving the
+artifact. FLUX.1 and Z-Image handled the same imperfection language without this failure, so it
+looks specific to klein-9B's quantized Qwen3-8B text encoder.
+
+**Practical rule: keep skin-flaw language minimal or absent when prompting klein-9B.** Lighting,
+environment and framing cues are sufficient for realism on their own (see `PROMPTING.md`) and
+carry none of this risk. If a render does need a visible scar or blemish on this model, treat it
+as render-and-inspect, not trust-on-first-try.
 
 #### Measured, 832x1216, 28 steps, guidance 2.0
 

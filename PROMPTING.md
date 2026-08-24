@@ -350,3 +350,45 @@ failure mode anywhere in the same batch of scenes.
 face to break. For people, prefer Z-Image (fast, prompt-faithful, no artifacts observed) or
 FLUX.1 (slower, more polished, no artifacts observed), and if you do use klein-9B for a face,
 generate at least 2-3 seeds and actually look at each one before picking.
+
+---
+
+## Root cause found: klein-9B's artifact was the "blemishes" prompt language, not guidance
+
+Following the 3-of-5 result above, the same five scenes were regenerated with skin-imperfection
+language removed entirely — no "blemishes," "scars," "under-eye shadows," "tired skin." Lighting,
+candid framing, wardrobe and environment prompts were kept unchanged; only the explicit skin-flaw
+descriptors were dropped. 832x1216, guidance 2.0 (klein/FLUX), cfg 1.0, same seeds.
+
+**Result: 5 of 5 clean on klein-9B — including the exact `grocery_aisle` scene that had the
+texture-bleed defect twice before.** The subway platform borderline case also came out clean.
+
+| Scene | FLUX.1-dev | Z-Image Turbo | FLUX.2-klein-9B |
+|---|---|---|---|
+| Subway platform | ![f1](docs/samples/clean_flux_subway_platform.jpg) | ![z1](docs/samples/clean_zimg_subway_platform.jpg) | ![k1](docs/samples/clean_klein_subway_platform.jpg) |
+| Rainy street | ![f2](docs/samples/clean_flux_rainy_street.jpg) | ![z2](docs/samples/clean_zimg_rainy_street.jpg) | ![k2](docs/samples/clean_klein_rainy_street.jpg) |
+| Grocery aisle | ![f3](docs/samples/clean_flux_grocery_aisle.jpg) | ![z3](docs/samples/clean_zimg_grocery_aisle.jpg) | ![k3](docs/samples/clean_klein_grocery_aisle.jpg) |
+| Laundromat | ![f4](docs/samples/clean_flux_laundromat.jpg) | ![z4](docs/samples/clean_zimg_laundromat.jpg) | ![k4](docs/samples/clean_klein_laundromat.jpg) |
+| Park bench | ![f5](docs/samples/clean_flux_park_bench.jpg) | ![z5](docs/samples/clean_zimg_park_bench.jpg) | ![k5](docs/samples/clean_klein_park_bench.jpg) |
+
+**This corrects the previous entry's conclusion.** It was not "klein-9B is unreliable for skin at
+any guidance" — it was that the specific phrase `"visible skin texture and a couple of small
+blemishes"` (and similar: scars, under-eye shadows) pushed klein's quantized text encoder toward
+rendering those flaws as garment-bleeding texture artifacts rather than clean blemishes. Guidance
+2.0 vs 4.0 likely made the *severity* worse or better, but the *cause* was the prompt content, not
+the sampler setting. FLUX.1 and Z-Image handled the same imperfection language without this
+failure, so it appears to be klein/Qwen3-8B-encoder-specific.
+
+**Practical rule going forward:** for klein-9B specifically, keep skin-flaw language minimal or
+absent. Realism cues that come from lighting, environment, framing and "not looking at camera" (per
+the lever table at the top of this document) are enough on their own and carry none of this risk.
+If a scene genuinely needs a visible scar or blemish on a klein-9B render, treat it as a
+render-and-inspect case, not a trust-on-first-try one.
+
+### Timing, this batch (warm)
+
+| | Per image |
+|---|---:|
+| Z-Image Turbo | 4.77-4.81 s |
+| FLUX.2-klein-9B | 19.36 s |
+| FLUX.1-dev | ~28 s (consistent with earlier measurements) |
