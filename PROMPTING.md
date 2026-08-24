@@ -392,3 +392,72 @@ render-and-inspect case, not a trust-on-first-try one.
 | Z-Image Turbo | 4.77-4.81 s |
 | FLUX.2-klein-9B | 19.36 s |
 | FLUX.1-dev | ~28 s (consistent with earlier measurements) |
+
+---
+
+## Second portrait batch — six new scenes, Z-Image vs klein-9B (2026-08-24)
+
+Six fresh scenes, six ethnicities, six distinct lighting conditions. Clean-skin language throughout
+(no blemish/scar/tired-skin descriptors) per the finding above. FLUX.1-dev was removed from the
+machine before this batch, so it is Z-Image and klein-9B only.
+
+| Scene | Z-Image Turbo | FLUX.2-klein-9B |
+|---|---|---|
+| Night market food stall (Thai) | ![z](docs/samples/p2_zimg_night_market.jpg) | ![k](docs/samples/p2_klein_night_market.jpg) |
+| Second-hand bookshop (White European) | ![z](docs/samples/p2_zimg_bookshop.jpg) | ![k](docs/samples/p2_klein_bookshop.jpg) |
+| Car passenger seat at dusk (Black) | ![z](docs/samples/p2_zimg_car_dusk.jpg) | ![k](docs/samples/p2_klein_car_dusk.jpg) |
+| Rooftop golden hour (Latina) | ![z](docs/samples/p2_zimg_rooftop_golden.jpg) | ![k](docs/samples/p2_klein_rooftop_golden.jpg) |
+| Hair salon (Korean) | ![z](docs/samples/p2_zimg_hair_salon.jpg) | ![k](docs/samples/p2_klein_hair_salon.jpg) |
+| Train window seat (South Asian) | ![z](docs/samples/p2_zimg_train_window.jpg) | ![k](docs/samples/p2_klein_train_window.jpg) |
+
+### ⚠️ Correction: the "root cause found" conclusion above was too confident
+
+The previous entry concluded that removing skin-imperfection language fixed klein-9B's artifact,
+based on 5 of 5 clean renders. **This batch shows it recurring at lower severity in 2 of 6 scenes
+(`car_dusk`, `train_window`) despite no imperfection language anywhere in those prompts** — mild
+speckled dark noise across the cheek and neck rather than the severe garment-bleeding blotches
+seen before.
+
+So the accurate statement is: **removing imperfection language substantially reduces the artifact
+but does not eliminate it.**
+
+Pattern in the failures, stated cautiously because the sample is small:
+
+- Both recurrences are the **two dimmest scenes** in the batch (car interior at dusk, overcast
+  train interior). The four clean klein renders were all comparatively well-lit — night market
+  string lights, bright window shaft, golden hour, bright salon lighting.
+- Both are also non-white subjects, but so are three of the four clean renders (Thai, Korean,
+  Latina). **Six samples is not enough to separate "low light" from "skin tone" as the driver**,
+  and it would be wrong to claim either with confidence from this data.
+
+**Working rule, unchanged in practice:** klein-9B face renders need to be looked at, not trusted.
+Low-light scenes appear to be the higher-risk case.
+
+### Z-Image: 6 of 6 clean
+
+No artifacts in any of the six. Two things worth noting specifically:
+
+- **Night market** — both hands rendered correctly while gripping a wok handle *and* a ladle
+  simultaneously. Hands were flagged early in this document as a FLUX-family weakness; Z-Image
+  keeps not exhibiting it.
+- **Train window** — rendered her faint reflection in the glass, as the prompt requested. Mirror
+  and reflection geometry was documented earlier as a FLUX.1 failure mode. Z-Image handles it.
+
+### klein-9B: where it is genuinely ahead
+
+When it renders clean, klein's environmental detail is the best available on this machine:
+
+- **Hair salon** — multiple mirrors with geometrically consistent reflections, correct wet-hair
+  clumping, real product clutter on the counter.
+- **Night market** — string-light bokeh, steam physics, tongs correctly gripped, bananas in a
+  produce bag, visible gas flame.
+- **Bookshop** — dust visible in the window light shaft exactly as prompted.
+
+Book and sign text remains gibberish across both models, as expected for the FLUX family.
+
+### Timing this batch (warm)
+
+| | Per image |
+|---|---:|
+| Z-Image Turbo (8 steps) | 6.0 s |
+| FLUX.2-klein-9B (28 steps) | 20-22 s |
