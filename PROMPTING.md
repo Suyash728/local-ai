@@ -254,3 +254,46 @@ woman "sitting by a window in a cluttered apartment" and the softer instructions
 skin", "no makeup") pulled the result toward a more intimate framing than the scene implied. Be
 explicit about wardrobe if it matters ("wearing a t-shirt", "fully clothed") rather than assuming
 the scene description constrains it.
+
+---
+
+## Head-to-head — FLUX.1-dev vs Z-Image Turbo, same prompt, five scenes
+
+Same prompt text fed to both models (FLUX at its recipe — 35 steps, FluxGuidance 2.0; Z-Image at
+its recipe — 8 steps, cfg 1.0), 832x1216, 2026-08-24. Each prompt included an explicit "consistent
+skin tone" clause and explicit wardrobe ("fully clothed", specific garments) to close the two gaps
+found in the previous batch.
+
+| Scene | FLUX.1-dev | Z-Image Turbo | Verdict |
+|---|---|---|---|
+| Subway platform, night | ![f1](docs/samples/cmp_flux_subway_platform.jpg) | ![z1](docs/samples/cmp_zimg_subway_platform.jpg) | **Z-Image.** FLUX reads as a styled editorial shot; Z-Image's downward gaze and flatter mood match "candid, tired, not looking at camera." |
+| Rain, umbrella, night | ![f2](docs/samples/cmp_flux_rainy_street.jpg) | ![z2](docs/samples/cmp_zimg_rainy_street.jpg) | **Z-Image**, marginally. FLUX is the prettier image (styled, red lipstick) but that's the problem — Z-Image's soaked hair and neutral expression read as an actual person caught in the rain. |
+| Grocery aisle | ![f3](docs/samples/cmp_flux_grocery_aisle.jpg) | ![z3](docs/samples/cmp_zimg_grocery_aisle.jpg) | **Z-Image, clearly.** Prompt said "mid-glance at a product, not posed for the camera." FLUX smiled straight at the lens anyway. Z-Image did exactly what was asked. |
+| Laundromat | ![f4](docs/samples/cmp_flux_laundromat.jpg) | ![z4](docs/samples/cmp_zimg_laundromat.jpg) | **Z-Image, clearly.** Same failure: prompt said "looking at her phone, not at the camera." FLUX looked at the camera. Z-Image looked at the phone. |
+| Park bench, overcast | ![f5](docs/samples/cmp_flux_park_bench.jpg) | ![z5](docs/samples/cmp_zimg_park_bench.jpg) | **Closest pairing of the five.** Both convincing; Z-Image has a slight edge on grain and skin texture, FLUX is a touch glossier. |
+
+### The pattern that emerged
+
+**FLUX has a strong pull back toward "posed, smiling, looking at the camera" even when the prompt
+explicitly says otherwise.** It happened in 2 of 5 scenes here (grocery aisle, laundromat) and cost
+those images the "candid" quality that was the entire point. Z-Image followed the same instructions
+correctly in all five. This isn't about which model draws a better face — it's that **Z-Image is
+more prompt-faithful on ordinary scene direction**, which matters more for "real photo" realism than
+raw fidelity does.
+
+### Timing, warm
+
+| | Per image | Relative |
+|---|---:|---|
+| FLUX.1-dev (35 steps) | 27.6-28.2 s | 1x |
+| Z-Image Turbo (8 steps) | **5.24-5.25 s** | **~5.3x faster** |
+
+### Where FLUX still wins
+
+Purely on lighting and rendering polish, FLUX's rainy-street and subway shots are the more
+*beautiful* images — better colour grading, more cinematic bokeh. If the goal is a styled shot
+rather than a convincing candid, FLUX is still the stronger renderer. It only loses when the prompt
+explicitly demands the subject not perform for the camera.
+
+**Working conclusion for this machine: default to Z-Image Turbo for candid/photoreal people work.
+Reach for FLUX when the brief is closer to editorial/styled than candid.**
