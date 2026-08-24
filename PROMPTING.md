@@ -1,0 +1,165 @@
+# FLUX Prompting Notes — Photorealistic People
+
+Tested on this machine: FLUX.1-dev **NVFP4**, ComfyUI 0.33.0, RTX 5060 Ti.
+Everything below was actually generated and inspected on 2026-08-24, not copied from a guide.
+
+---
+
+## The core principle
+
+**Don't ask for realism. Describe a real photographic situation.**
+
+Asking for "a photorealistic portrait" pushes FLUX toward the glossiest region of its training
+data — retouched stock and editorial photography. That is precisely the plastic, too-smooth,
+too-symmetrical look people mean when they say an image "looks AI".
+
+Real photographs are mostly *bad* photographs: ugly light, awkward angles, cluttered rooms,
+someone blinking. Describe **that**, and realism comes for free.
+
+---
+
+## Words to avoid
+
+These actively hurt. Every one of them is a pull toward polished commercial imagery:
+
+`photorealistic` · `hyperrealistic` · `8k` · `ultra detailed` · `masterpiece` · `editorial
+photography` · `professional` · `beautiful` · `stunning` · `flawless` · `perfect skin` ·
+`studio lighting` · `neutral background`
+
+> Ironically, **none of the four prompts below contains the word "photorealistic"**, and all four
+> are more convincing than the earlier attempt that did.
+
+## Words that work
+
+| Lever | Why it works | Examples |
+|---|---|---|
+| **Direct flash** | The single strongest cue. Real snapshots have harsh, ugly light. | `direct on-camera flash`, `harsh flash falloff`, `slightly overexposed forehead` |
+| **Named skin flaws** | Overrides the retouched-skin default | `uneven skin tone`, `visible pores`, `a small blemish on her chin`, `under-eye shadows`, `chapped lips`, `cold-flushed cheeks` |
+| **Cluttered real places** | "Neutral background" is a studio tell | `cluttered kitchen counter with bottles`, `shelf of toiletries`, `city street out of focus` |
+| **Not looking at camera** | Eye contact + centred framing reads as posed | `looking away from the lens`, `looking out of frame`, `mid-laugh` |
+| **Bad/cheap cameras** | Poor optics look real; perfect optics look rendered | `2000s digital compact camera`, `heavy phone camera sharpening`, `chromatic aberration`, `low dynamic range` |
+| **Named film stock** | Buys grain and scan colour (see caveat below) | `35mm film on Kodak Portra 400`, `scanned negative`, `dust specks` |
+| **Imperfect framing** | Real photos are badly composed | `cropped slightly off-centre`, `imperfect framing`, `natural unposed framing` |
+| **Weather / environment** | Forces physically real light behaviour | `flat grey overcast light`, `wind blowing hair across her face` |
+
+---
+
+## Settings that worked
+
+| Parameter | Value | Note |
+|---|---|---|
+| Resolution | **832 x 1216** | Portrait framing. Both dims **must be divisible by 16** for FLUX latents. |
+| Steps | **35** | 25 is fine for objects; faces need more. Beyond ~40 gives little. |
+| **FluxGuidance** | **2.0** | The most important dial. 3.5+ goes waxy and over-contrasted. **Lower = more photographic.** |
+| KSampler `cfg` | **1.0** | Always 1.0 for FLUX — real guidance is the FluxGuidance node. |
+| Sampler / scheduler | `euler` / `simple` | Reliable default |
+| Negative prompt | *empty* | FLUX dev ignores it; cfg 1.0 means it does nothing anyway |
+
+Cost on this machine: **28–32 s** per image at these settings.
+
+---
+
+## The four tested recipes
+
+All four used the same seed (`4242`) so differences are prompt-driven, not luck.
+
+### A — Flash snapshot ✅ BEST
+![A_flash](docs/samples/A_flash.jpg)
+
+<sub>tracked copy: `docs/samples/A_flash.jpg` · full-res original: `ComfyUI/output/A_flash_00001_.png` (not in git — ComfyUI/ is ignored)</sub>
+
+```
+candid snapshot at a house party, direct on-camera flash, harsh flash falloff into a dark
+background, slightly overexposed forehead and nose, a woman mid-laugh looking away from the
+lens, uneven skin tone, visible pores, a small blemish on her chin, flyaway hair strands,
+cluttered kitchen counter with bottles behind her, amateur photo taken on a 2000s digital
+compact camera, slight chromatic aberration, imperfect framing
+```
+
+**Result:** the most convincing by a clear margin. Blown highlights on forehead and nose, shiny
+skin, hard falloff to black, awkward downward angle, genuine background clutter. Reads as a photo
+someone actually took rather than one a model posed for. **This is the recipe to start from.**
+
+### C — Documentary / environmental ✅ strong
+![C_documentary](docs/samples/C_documentary.jpg)
+
+<sub>tracked copy: `docs/samples/C_documentary.jpg` · full-res original: `ComfyUI/output/C_documentary_00001_.png` (not in git — ComfyUI/ is ignored)</sub>
+
+```
+documentary photograph of a woman waiting at a bus stop in winter, flat grey overcast light,
+wind blowing strands of hair across her face, worn wool coat, cold-flushed cheeks and nose tip,
+chapped lips, city street out of focus behind her, shot on 35mm at f/2, natural unposed framing,
+she is not looking at the camera
+```
+
+**Result:** very good. Cold-flush and windblown hair are convincing, street bokeh is real.
+Slightly let down by glassy eyes and a face that is a touch too symmetric.
+
+### B — Film stock ⚠️ beautiful, wrong target
+![B_film](docs/samples/B_film.jpg)
+
+<sub>tracked copy: `docs/samples/B_film.jpg` · full-res original: `ComfyUI/output/B_film_00001_.png` (not in git — ComfyUI/ is ignored)</sub>
+
+```
+35mm film photograph on Kodak Portra 400, a woman sitting by a window in a cluttered apartment,
+flat overcast daylight, unretouched skin with visible texture, faint under-eye shadows, no makeup,
+fine film grain, she is looking out of frame, cropped slightly off-centre, muted desaturated
+colour, scanned negative, dust specks
+```
+
+**Result:** gorgeous grain and scan colour, but it reads as a *styled editorial shoot with a
+professional model*, not a candid photo of an ordinary person. **Naming a film stock buys texture,
+not candour.** Use it for mood, not for "is this a real person".
+
+### D — Phone mirror selfie ❌ instructive failure
+![D_phone](docs/samples/D_phone.jpg)
+
+<sub>tracked copy: `docs/samples/D_phone.jpg` · full-res original: `ComfyUI/output/D_phone_00001_.png` (not in git — ComfyUI/ is ignored)</sub>
+
+```
+casual mirror selfie on an older smartphone, bathroom mirror with water spots and fingerprints,
+harsh overhead fluorescent light casting shadows under the eyes and nose, holding the phone up,
+slight motion blur, uneven skin, no makeup, tired expression, cluttered shelf of toiletries
+behind her, low dynamic range, heavy phone camera sharpening, slightly blown highlights
+```
+
+**Result:** the *environment* is excellent — fluorescent panel, water spots, cluttered shelf, dead
+tired expression. But the **hand is broken**: impossible finger positions, mangled nails, and the
+mirror geometry is wrong (the phone *is* the camera, so it cannot be photographed face-on).
+It also invented bare shoulders that were never requested.
+
+---
+
+## Known failure modes on this setup
+
+**Hands.** FLUX's classic weakness, and **4-bit NVFP4 makes fine articulated structure worse** —
+4-bit quantization costs the most exactly where detail is finest. Practical rule: **keep hands out
+of frame** unless you are prepared to inpaint them. Avoid prompts that require holding objects.
+
+**Eyes at off-angle poses.** Subtly asymmetric, or the far eye sits wrong. More likely in ¾ views
+than straight-on. Re-roll the seed; it is seed-dependent, not prompt-dependent.
+
+**Mirror / reflection geometry.** FLUX does not reason about optics. Mirror selfies, reflections
+in windows and photos-of-screens come out physically impossible.
+
+**Prompt drift on long prompts.** Late clauses get weaker. Put the important things first.
+
+**NVFP4 quality ceiling.** This is a 4-bit checkpoint chosen for speed. For a quality reference,
+an fp8 FLUX checkpoint (~16 GiB) would be sharper on faces and hands. Not downloaded — the speed
+is the whole reason for the NVFP4 path. See `README.md` for the trade-off.
+
+---
+
+## Reusable template
+
+```
+<candid/snapshot framing>, <harsh or ugly light source>, <overexposure or falloff artifact>,
+a <subject> <doing something, not looking at the lens>, <2-3 named skin imperfections>,
+<flyaway hair / clothing detail>, <cluttered specific environment>, <cheap camera and its artifacts>,
+imperfect framing
+```
+
+Then: **guidance 2.0, 35 steps, 832x1216, cfg 1.0, euler/simple.**
+
+Iterate on the **seed** first — faces are highly seed-sensitive. Only change the prompt once several
+seeds all show the same problem.

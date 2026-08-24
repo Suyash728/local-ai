@@ -2,6 +2,7 @@
 
 What is installed, where things live, and how to start them.
 **Rules for Claude Code sessions:** `CLAUDE.md`. **Full plan & reasoning:** `PLAN.md`.
+**Getting photoreal people out of FLUX:** `PROMPTING.md`.
 
 | | |
 |---|---|
@@ -211,6 +212,11 @@ tensors. The other three are not optional.
 plus `comfy-kitchen`. `--use-pytorch-cross-attention` does not disable it.
 
 **Never install xformers.** PyPI wheels stop at sm_89 and it silently downgrades torch.
+
+### Prompting
+See **`PROMPTING.md`** — tested recipes for photorealistic people, the word
+blacklist, guidance/step settings, and the known failure modes (hands, mirror geometry,
+NVFP4's cost on fine detail).
 
 ### Measured on this machine — 2026-08-24
 
