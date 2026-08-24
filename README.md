@@ -10,7 +10,7 @@ What is installed, where things live, and how to start them.
 | Track A — LLMs | ✅ **DONE & VERIFIED** (2026-08-23) |
 | Track B — ComfyUI | ✅ **DONE & VERIFIED** (2026-08-24) |
 | Track C — Video | ⛔ deferred by decision (needs 64 GiB RAM) |
-| Free disk | ~110 GiB |
+| Free disk | ~103 GiB |
 
 ---
 
@@ -212,6 +212,51 @@ tensors. The other three are not optional.
 plus `comfy-kitchen`. `--use-pytorch-cross-attention` does not disable it.
 
 **Never install xformers.** PyPI wheels stop at sm_89 and it silently downgrades torch.
+
+
+### Z-Image Turbo (NVFP4) — added 2026-08-24
+
+A 6B Lumina2/NextDiT model distilled for **8-step** sampling. Comfy-Org ships a native NVFP4 build,
+so it uses the same FP4 tensor cores as FLUX.
+
+| File | Size |
+|---|---:|
+| `diffusion_models/z_image_turbo_nvfp4.safetensors` | 4.20 GiB |
+| `text_encoders/qwen_3_4b_fp4_mixed.safetensors` (Qwen3-4B) | 3.24 GiB |
+| VAE | **reuses `vae/ae.safetensors`** — see below |
+
+**Its VAE is byte-identical to FLUX's** (verified by sha256). Z-Image reuses the FLUX autoencoder,
+so there is only one `ae.safetensors` on disk and both models point at it. Note the download ships
+it under the same filename — if you ever re-download it, do **not** let it overwrite blindly; confirm
+the checksum first.
+
+**Loading it:** use `CLIPLoader` with type **`stable_diffusion`**, not a z-image entry — there isn't
+one. ComfyUI detects `TEModel.QWEN3_4B` from the encoder weights and routes to `z_image.te` for any
+clip_type that is not flux/flux2. Picking `flux2` would silently load it as a Klein encoder instead.
+
+#### Measured, 832x1216, warm
+
+| Config | Time | Note |
+|---|---:|---|
+| 8 steps, cfg 1.0, euler | **4.99 s** | the default to use |
+| 12 steps, cfg 1.0, euler | 7.24 s | marginal quality gain |
+| 8 steps, cfg 1.5, res_multistep | 9.35 s | **2x cost** — cfg > 1.0 needs cond *and* uncond passes |
+
+Peak VRAM **8.0 GiB** (vs FLUX's 12.3).
+
+#### Z-Image vs FLUX.1-dev on this machine
+
+| | FLUX.1-dev NVFP4 | Z-Image Turbo NVFP4 |
+|---|---|---|
+| Transformer | 8.56 GiB | **4.20 GiB** |
+| Text encoder | T5-XXL fp8, 4.80 GiB | Qwen3-4B fp4, **3.24 GiB** |
+| Steps | 20-25 | **8** |
+| 832x1216 warm | 24.0 s (25 steps) | **4.99 s** |
+| Peak VRAM | 12.3 GiB | **8.0 GiB** |
+
+**~4.8x faster at the same resolution, 4.3 GiB less VRAM.** On the flash-snapshot prompt from
+`PROMPTING.md` it also produced *more* convincing results than FLUX — harder flash shadow, better
+skin micro-texture. FLUX still has the larger LoRA/ControlNet ecosystem.
 
 ### Prompting
 See **`PROMPTING.md`** — tested recipes for photorealistic people, the word

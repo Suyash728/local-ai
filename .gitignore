@@ -45,3 +45,5 @@ input/
 .trackb-*.sh
 .trackb-*.log
 .comfy-reqs-notorch.txt
+.trackb2-*.sh
+.trackb2-*.log

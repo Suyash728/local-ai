@@ -163,3 +163,34 @@ Then: **guidance 2.0, 35 steps, 832x1216, cfg 1.0, euler/simple.**
 
 Iterate on the **seed** first — faces are highly seed-sensitive. Only change the prompt once several
 seeds all show the same problem.
+
+
+---
+
+## Z-Image Turbo — same prompts, different settings
+
+The recipes above transfer directly. Only the sampler settings change:
+
+| Parameter | FLUX.1-dev | Z-Image Turbo |
+|---|---|---|
+| Steps | 35 | **8** |
+| Guidance | FluxGuidance node @ 2.0 | *no FluxGuidance node* |
+| KSampler `cfg` | 1.0 always | **1.0** (1.5 costs 2x for little gain) |
+| Sampler | euler / simple | euler / simple |
+
+**`cfg` above 1.0 doubles render time** — classifier-free guidance runs a conditional *and* an
+unconditional pass. Measured: cfg 1.0 = 4.99 s, cfg 1.5 = 9.35 s, same 8 steps.
+
+Running the `A_flash` prompt unchanged through Z-Image:
+
+![z_image_cfg10](docs/samples/z_image_cfg10.jpg)
+
+<sub>cfg 1.0, 8 steps, 4.99 s — `docs/samples/z_image_cfg10.jpg`</sub>
+
+![z_image_cfg15](docs/samples/z_image_cfg15.jpg)
+
+<sub>cfg 1.5, 8 steps, 9.35 s — more blown-out flash, arguably more realistic, but twice the cost</sub>
+
+Both are more convincing than the FLUX version of the same prompt: harder flash shadow on the wall,
+better skin micro-texture, plausible label detail on the bottles. **For photoreal people, Z-Image is
+now the default on this machine**; reach for FLUX when you need its LoRA ecosystem.
