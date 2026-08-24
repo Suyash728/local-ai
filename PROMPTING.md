@@ -194,3 +194,63 @@ Running the `A_flash` prompt unchanged through Z-Image:
 Both are more convincing than the FLUX version of the same prompt: harder flash shadow on the wall,
 better skin micro-texture, plausible label detail on the bottles. **For photoreal people, Z-Image is
 now the default on this machine**; reach for FLUX when you need its LoRA ecosystem.
+
+---
+
+## Batch test — diverse scenes and ethnicities, 2026-08-24
+
+Seven portraits, all Z-Image Turbo NVFP4, 832x1216, 8 steps, cfg 1.0, euler/simple. Each ~6 s warm.
+Different scene, different ethnicity, different named imperfections per the lever table above.
+
+### Fixing the flash portrait's skin-tone mismatch
+
+The original flash recipe (`A_flash`, `z_8step_cfg10/15` above) blew the face out near-white while
+the neck and chest stayed a visibly different, tanner shade — a real flash artifact taken too far,
+reading as an inconsistency rather than a photographic effect. Two changes fixed it:
+
+- softened `"slightly overexposed forehead and nose"` to a milder, unstated falloff
+- **added an explicit instruction**: `"even consistent skin tone across her face, neck and chest
+  with no colour mismatch"`
+
+![z_flash_fixed](docs/samples/z_flash_fixed.jpg)
+
+<sub>fixed flash recipe, Black woman, house party — face/neck/chest now read as one skin tone</sub>
+
+**Lesson: name the failure mode directly in the prompt.** "Consistent skin tone" is not a generic
+quality word (like "photorealistic") — it is a specific, falsifiable instruction the model can act
+on, so it survives the recipe's realism-over-polish philosophy.
+
+### The set
+
+| Scene | Ethnicity | Verdict |
+|---|---|---|
+| ![z_documentary_winter](docs/samples/z_documentary_winter.jpg) | East Asian, bus stop, winter | **Best of the batch.** Cold-flushed cheeks, real bus shelter, genuine street depth. |
+| ![z_office_fluorescent](docs/samples/z_office_fluorescent.jpg) | White European, office desk | Flat fluorescent panel, coffee-stained mug, blurred monitors with plausible on-screen text. Unmistakably a real workplace snapshot. |
+| ![z_kitchen_daylight](docs/samples/z_kitchen_daylight.jpg) | Middle Eastern, home kitchen | **Hands holding a utensil mid-task, correctly formed.** See correction below. |
+| ![z_beach_daylight](docs/samples/z_beach_daylight.jpg) | (requested Latina — see note) | Convincing squint into midday sun, real background crowd, sweat sheen. Ethnicity adherence missed; read as ambiguous/white. |
+| ![z_window_light](docs/samples/z_window_light.jpg) | South Asian, window light | Strong light modeling and grain. Prompt asked for "sitting by a window in a cluttered apartment" and got a more undressed, intimate framing than intended — the model leaned harder into "unretouched/no makeup" than the scene called for. |
+| ![z_gym_daylight](docs/samples/z_gym_daylight.jpg) | Southeast Asian, gym mirror | **Correct mirror-selfie optics.** See correction below. |
+
+### Two corrections to the failure modes documented above
+
+**Hands are not a reliable failure on Z-Image the way they are on FLUX.** The kitchen shot has a
+hand gripping a dough scraper mid-task — fingers, grip and tool all coherent. Small sample (one
+shot), not a guarantee, but 4-bit NVFP4 clearly is not costing Z-Image the same hand quality it
+costs FLUX.
+
+**Z-Image got mirror-selfie geometry right where FLUX did not.** `D_phone` (FLUX, above) produced
+a physically impossible mirror reflection. The equivalent Z-Image shot — phone held up to a gym
+mirror — has correct phone-in-mirror physics and a plausible one-handed grip.
+
+### Two real misses, reported not hidden
+
+**Ethnicity adherence is inconsistent.** The beach shot asked for a Latina woman and produced
+someone who reads as ambiguous-to-white. Five of seven scenes hit the requested ethnicity
+convincingly; this one didn't. Re-rolling the seed, or naming more specific features (skin tone,
+hair texture) rather than a demonym alone, is the likely fix — not yet tested.
+
+**Prompt scope can drift into unintended wardrobe/framing.** The window-light shot asked for a
+woman "sitting by a window in a cluttered apartment" and the softer instructions ("unretouched
+skin", "no makeup") pulled the result toward a more intimate framing than the scene implied. Be
+explicit about wardrobe if it matters ("wearing a t-shirt", "fully clothed") rather than assuming
+the scene description constrains it.
