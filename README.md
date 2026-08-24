@@ -259,7 +259,7 @@ Peak VRAM **8.0 GiB** (vs FLUX's 12.3).
 skin micro-texture. FLUX still has the larger LoRA/ControlNet ecosystem.
 
 
-### FLUX.2-klein-9B (NVFP4) — added 2026-08-24
+### FLUX.2-klein-9B (NVFP4) — added 2026-08-24, corrected same day
 
 BFL's distilled FLUX.2, non-commercial. **License: `flux-non-commercial-license`, same family as
 FLUX.1-dev — not for commercial use.** Repo is gated; requires clicking "Agree" at
@@ -276,25 +276,37 @@ something a token bypasses).
 - `CLIPLoader` type stays `stable_diffusion`, same as Z-Image. ComfyUI detects `TEModel.QWEN3_8B`
   from the encoder weights and routes to `klein_te` for any clip_type except `ideogram4`.
 - **Must use `EmptyFlux2LatentImage`, not `EmptySD3LatentImage`.** FLUX.2's latent space is
-  128 channels at 16x spatial downscale, vs FLUX.1's 16 channels at 8x. The wrong node fails loudly
-  rather than corrupting output, but get it right the first time.
+  128 channels at 16x spatial downscale, vs FLUX.1's 16 channels at 8x.
 - `FluxGuidance` node is shared with FLUX.1 — no separate guidance node needed.
 
-#### Measured, 832x1216, 28 steps, guidance 4.0
+**⚠️ Guidance value matters more here than on FLUX.1, and getting it wrong produces skin
+artifacts, not just a style shift.** The first verification render used `guidance: 4.0` and
+produced blotchy, rash-like red patches across the cheeks — a real defect initially and wrongly
+described as "convincing windburn" in this file. At `guidance: 2.0` (same value tuned for FLUX.1)
+three of five test scenes came out clean, but **one still showed a clear artifact**: dark blotches
+on the subject's cheek that matched a stain in the identical position on her shirt — a texture
+bleed-through, not intentional dirt or blemishes. A second scene was borderline (a few marks near
+the mouth that could pass as skin detail or could be an artifact).
+
+**Current honest assessment: klein-9B is not yet reliable for skin rendering on this machine.**
+Roughly 3 of 5 renders are clean; the other 1-2 need a re-roll. Lower guidance clearly helps but
+does not fully fix it. Until this is understood better (prompt language? seed sensitivity? a
+guidance value below 2.0?), treat every klein-9B face render as unverified until you've actually
+looked at it — do not assume it rendered correctly.
+
+#### Measured, 832x1216, 28 steps, guidance 2.0
 
 | | |
 |---|---|
-| Cold | 28.95 s |
-| Warm | **19.11 s** |
-| Peak VRAM | **11.7 GiB** |
+| Warm | **19.7-19.9 s**, consistent across 5 renders |
+| Peak VRAM | ~11.7 GiB |
 
 Log confirms the FP4 path: `Detected mixed precision quantization`, `Native ops: ... nvfp4`,
 `model_type FLUX`, `Requested to load Flux2`.
 
-**Texture fidelity is the standout** — individual tweed coat fibers, snow flecks, windburned skin
-detail all rendered with more micro-texture than either FLUX.1 or Z-Image produced at the same
-resolution. Slower than Z-Image (19.1s vs 5.25s) and heavier (11.7 vs 8.0 GiB), positioned as the
-detail-quality option rather than the fast default.
+When it renders clean, texture fidelity is the standout — individual fabric fibers, weathered wood
+grain, natural freckle placement, finer than either FLUX.1 or Z-Image at the same resolution. The
+open question is how often "when it renders clean" actually holds.
 
 ### Prompting
 See **`PROMPTING.md`** — tested recipes for photorealistic people, the word

@@ -297,3 +297,56 @@ explicitly demands the subject not perform for the camera.
 
 **Working conclusion for this machine: default to Z-Image Turbo for candid/photoreal people work.
 Reach for FLUX when the brief is closer to editorial/styled than candid.**
+
+---
+
+## Three-way — FLUX.1-dev, Z-Image Turbo, FLUX.2-klein-9B, same five scenes
+
+Same prompts and seeds as the FLUX vs Z-Image comparison above, now with klein-9B added
+(guidance 2.0, 28 steps — see the correction below for why guidance 2.0 and not the 4.0 first
+tried). 832x1216, 2026-08-24.
+
+**A defect was found and is reported here rather than fixed quietly.** klein-9B's first
+verification render (elsewhere in this repo's history) used guidance 4.0 and produced blotchy
+red patches across the subject's cheeks that were wrongly described as "convincing windburn" at
+the time. They were not — they were a rendering artifact. Dropping guidance to 2.0 (the value
+already tuned for FLUX.1) fixed 3 of 5 scenes below, but **grocery_aisle still shows a clear
+artifact** and subway_platform is borderline. klein-9B is not yet reliable for skin on this
+machine; verify every face render before trusting it.
+
+| Scene | FLUX.1-dev | Z-Image Turbo | FLUX.2-klein-9B |
+|---|---|---|---|
+| Subway platform | ![f1](docs/samples/cmp_flux_subway_platform.jpg) | ![z1](docs/samples/cmp_zimg_subway_platform.jpg) | ![k1](docs/samples/cmp_klein_subway_platform.jpg) |
+| Rainy street | ![f2](docs/samples/cmp_flux_rainy_street.jpg) | ![z2](docs/samples/cmp_zimg_rainy_street.jpg) | ![k2](docs/samples/cmp_klein_rainy_street.jpg) |
+| Grocery aisle | ![f3](docs/samples/cmp_flux_grocery_aisle.jpg) | ![z3](docs/samples/cmp_zimg_grocery_aisle.jpg) | ![k3](docs/samples/cmp_klein_grocery_aisle.jpg) |
+| Laundromat | ![f4](docs/samples/cmp_flux_laundromat.jpg) | ![z4](docs/samples/cmp_zimg_laundromat.jpg) | ![k4](docs/samples/cmp_klein_laundromat.jpg) |
+| Park bench | ![f5](docs/samples/cmp_flux_park_bench.jpg) | ![z5](docs/samples/cmp_zimg_park_bench.jpg) | ![k5](docs/samples/cmp_klein_park_bench.jpg) |
+
+### Per-scene notes on klein-9B specifically
+
+- **Subway platform** — borderline. A few dark marks near the mouth/chin could pass as skin
+  detail but the pattern looks more like an artifact than intentional. Background (train, tiled
+  platform, sodium lighting) is excellent.
+- **Rainy street** — clean. No skin defects, correct rain physics on the umbrella and raincoat,
+  real neon signage. One of the best renders of the whole three-way set.
+- **Grocery aisle** — **defect confirmed.** Dark blotches on her cheek match a stain in the exact
+  same position on her hoodie — a texture bleed-through between garment and face, not a rendered
+  blemish. Do not use this image; regenerate with a different seed if this scene is needed.
+- **Laundromat** — clean, aside from a faint minor mark on one forearm (far less severe than the
+  grocery-aisle defect, plausible as a real mark). Correct phone-in-hand pose, real detergent
+  bottles and washers.
+- **Park bench** — clean. Freckles rendered naturally and match the prompt request, weathered
+  wood grain on the bench, real jogger in the background. Best klein render of the set.
+
+### What this means in practice
+
+klein-9B produces the **highest peak texture fidelity of the three models** — when it works. It
+also has the **highest failure rate** for skin artifacts, at least at the guidance values tested
+so far (4.0 clearly too high; 2.0 better but not clean). FLUX.1 and Z-Image did not show this
+failure mode anywhere in the same batch of scenes.
+
+**Recommendation until this is better understood:** use klein-9B for texture-critical work
+(clothing, environments, non-human subjects) where its detail advantage matters and there's no
+face to break. For people, prefer Z-Image (fast, prompt-faithful, no artifacts observed) or
+FLUX.1 (slower, more polished, no artifacts observed), and if you do use klein-9B for a face,
+generate at least 2-3 seeds and actually look at each one before picking.
