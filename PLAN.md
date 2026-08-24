@@ -1,7 +1,7 @@
 # Local AI Stack — Audit & Build Plan
 
 **Machine:** CachyOS / Ryzen 5 5600 / RTX 5060 Ti 16G (sm_120) / 31 GiB RAM
-**Audited:** 2026-08-23 · **Status:** Tracks A and B COMPLETE & VERIFIED (2026-08-24). Track C deferred.
+**Audited:** 2026-08-23 · **Status:** Tracks A and B COMPLETE & VERIFIED (2026-08-24), plus Z-Image Turbo and FLUX.2-klein-9B added post-plan. Track C deferred.
 **Read `CLAUDE.md` first** for the operating rules. This file is the reasoning and the checklist.
 
 ---

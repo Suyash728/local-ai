@@ -10,7 +10,7 @@ What is installed, where things live, and how to start them.
 | Track A — LLMs | ✅ **DONE & VERIFIED** (2026-08-23) |
 | Track B — ComfyUI | ✅ **DONE & VERIFIED** (2026-08-24) |
 | Track C — Video | ⛔ deferred by decision (needs 64 GiB RAM) |
-| Free disk | ~103 GiB |
+| Free disk | ~91 GiB |
 
 ---
 
@@ -257,6 +257,44 @@ Peak VRAM **8.0 GiB** (vs FLUX's 12.3).
 **~4.8x faster at the same resolution, 4.3 GiB less VRAM.** On the flash-snapshot prompt from
 `PROMPTING.md` it also produced *more* convincing results than FLUX — harder flash shadow, better
 skin micro-texture. FLUX still has the larger LoRA/ControlNet ecosystem.
+
+
+### FLUX.2-klein-9B (NVFP4) — added 2026-08-24
+
+BFL's distilled FLUX.2, non-commercial. **License: `flux-non-commercial-license`, same family as
+FLUX.1-dev — not for commercial use.** Repo is gated; requires clicking "Agree" at
+huggingface.co/black-forest-labs/FLUX.2-klein-9b-nvfp4 before download (a human action, not
+something a token bypasses).
+
+| File | Size |
+|---|---:|
+| `diffusion_models/flux-2-klein-9b-nvfp4.safetensors` | 5.37 GiB |
+| `text_encoders/qwen_3_8b_fp4mixed.safetensors` (Qwen3-8B) | 6.34 GiB |
+| `vae/flux2-vae.safetensors` | 0.31 GiB — **not** the same VAE as FLUX.1/Z-Image (different byte size, checked) |
+
+**Loading it — two differences from FLUX.1:**
+- `CLIPLoader` type stays `stable_diffusion`, same as Z-Image. ComfyUI detects `TEModel.QWEN3_8B`
+  from the encoder weights and routes to `klein_te` for any clip_type except `ideogram4`.
+- **Must use `EmptyFlux2LatentImage`, not `EmptySD3LatentImage`.** FLUX.2's latent space is
+  128 channels at 16x spatial downscale, vs FLUX.1's 16 channels at 8x. The wrong node fails loudly
+  rather than corrupting output, but get it right the first time.
+- `FluxGuidance` node is shared with FLUX.1 — no separate guidance node needed.
+
+#### Measured, 832x1216, 28 steps, guidance 4.0
+
+| | |
+|---|---|
+| Cold | 28.95 s |
+| Warm | **19.11 s** |
+| Peak VRAM | **11.7 GiB** |
+
+Log confirms the FP4 path: `Detected mixed precision quantization`, `Native ops: ... nvfp4`,
+`model_type FLUX`, `Requested to load Flux2`.
+
+**Texture fidelity is the standout** — individual tweed coat fibers, snow flecks, windburned skin
+detail all rendered with more micro-texture than either FLUX.1 or Z-Image produced at the same
+resolution. Slower than Z-Image (19.1s vs 5.25s) and heavier (11.7 vs 8.0 GiB), positioned as the
+detail-quality option rather than the fast default.
 
 ### Prompting
 See **`PROMPTING.md`** — tested recipes for photorealistic people, the word
