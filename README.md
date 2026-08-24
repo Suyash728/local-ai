@@ -10,7 +10,7 @@ What is installed, where things live, and how to start them.
 | Track A — LLMs | ✅ **DONE & VERIFIED** (2026-08-23) |
 | Track B — ComfyUI | ✅ **DONE & VERIFIED** (2026-08-24) |
 | Track C — Video | ⛔ deferred by decision (needs 64 GiB RAM) |
-| Free disk | ~91 GiB |
+| Free disk | ~86 GiB |
 
 ---
 
@@ -311,6 +311,49 @@ When it renders clean, texture fidelity is the standout — individual fabric fi
 grain, natural freckle placement, finer than either FLUX.1 or Z-Image at the same resolution. The
 open question is how often "when it renders clean" actually holds.
 
+### FLUX.2-dev NVFP4 — ⚠️ PARTIALLY INSTALLED, NOT RUNNABLE (2026-08-25)
+
+**The transformer is downloaded. The text encoder is not. This model cannot generate anything
+until an encoder is added.** Deliberate — the encoder download was deferred.
+
+| Component | Status | Size |
+|---|---|---|
+| `diffusion_models/flux2-dev-nvfp4.safetensors` | ✅ downloaded, verified | 19.59 GiB |
+| `vae/flux2-vae.safetensors` | ✅ already present (shared with klein-9B) | 0.31 GiB |
+| **Mistral-3-Small text encoder** | ❌ **NOT DOWNLOADED** | see options below |
+
+Verified on arrival: 731 tensors, header parses, declared data end == file size, NVFP4
+quantization metadata present, `chattr +C` applied. Download took 55 min at ~6 MB/s.
+
+Licence: `flux-dev-non-commercial-license` — **not for commercial use**, same as klein-9B.
+Ungated, unlike klein-9B (no click-through needed).
+
+#### Text encoder options — none chosen yet
+
+The Mistral encoder is unavoidable: klein's Qwen3-8B cannot substitute (4096-dim vs Mistral's
+5120-dim, different architecture entirely).
+
+| Option | Size | vs fp4 baseline | Note |
+|---|---:|---|---|
+| `Comfy-Org/flux2-dev` → `mistral_3_small_flux2_fp4_mixed` | 11.43 GiB | baseline | the standard choice |
+| `gguf-org/flux2-dev-gguf` → `cow-mistral3-small-q2_k.gguf` | **7.20 GiB** | −4.23 GiB | Q2 on a *text encoder* is aggressive; prompt adherence degrades first |
+| `gguf-org/flux2-dev-gguf` → `cow-mistral3-small-iq4_xs.gguf` | 10.36 GiB | −1.07 GiB | barely saves anything |
+| `silveroxides/...` fp8mixed variants | 16.8–17.2 GiB | *larger* | no benefit here |
+
+GGUF route is viable — ComfyUI-GGUF handles Mistral (`loader.py`: `if temb_shape == (131072,
+5120): # probably Mistral`), and the `CLIPLoaderGGUF` node is already installed.
+
+**Unsourced but supported:** ComfyUI natively handles a 30-layer pruned Mistral
+(`TEModel.MISTRAL3_24B_PRUNED_FLUX2`, detected by absence of `model.layers.39.*`), which would be
+~25% smaller. No published checkpoint found. Could be produced locally by stripping layers, but
+that requires downloading the full encoder first — saves disk, not bandwidth.
+
+#### VRAM reality check (unchanged from the pre-download analysis)
+
+The transformer alone is 19.59 GiB against **14.4 GiB usable VRAM**. It will have to stream weights
+over PCIe 4.0 x8 via `comfy-aimdo` on every forward pass. Expect it to be substantially slower than
+klein-9B (19.7 s) or Z-Image (5 s). That prediction is still untested — no encoder, no render.
+
 ### Prompting
 See **`PROMPTING.md`** — tested recipes for photorealistic people, the word
 blacklist, guidance/step settings, and the known failure modes (hands, mirror geometry,
@@ -381,3 +424,18 @@ Token stored at `~/AI/models/hf/token` (perms 0600, inside the gitignored `model
 - torch re-verified as `+cu130` after every dependency install
 
 **Still not done:** Track C (video) remains deferred. SageAttention is not built.
+
+---
+
+## Gotcha: `hf download` does not resume across invocations
+
+Discovered 2026-08-24 while switching a download from two files to one. Killing an `hf download`
+and restarting it **loses all progress**. The partial is written as
+`<blob-id>.<sha256>.<per-invocation-suffix>.incomplete`, and a new invocation generates a new
+suffix — so it starts a fresh file alongside the stale one rather than resuming.
+
+Verified directly: same blob id and sha256, suffixes `b5e371be` vs `eeb02795`, old file static
+while the new one grew. Cost 3.02 GiB of re-download.
+
+**Implication:** do not interrupt a multi-GB `hf download` expecting to continue later. If one is
+killed, delete the stale `.incomplete` to reclaim the space — nothing will ever use it.
