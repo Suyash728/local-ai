@@ -312,10 +312,9 @@ When it renders clean, texture fidelity is the standout — individual fabric fi
 grain, natural freckle placement, finer than either FLUX.1 or Z-Image at the same resolution. The
 open question is how often "when it renders clean" actually holds.
 
-### FLUX.2-dev NVFP4 — fully installed 2026-08-25, not yet test-rendered
+### FLUX.2-dev NVFP4 — fully installed and verified 2026-08-25
 
-**All three components are now present.** No test render has been run yet — the VRAM prediction
-below is still unverified.
+**All three components present and verified with 16 real renders.**
 
 | Component | Status | Size |
 |---|---|---|
@@ -349,11 +348,25 @@ GGUF route is viable — ComfyUI-GGUF handles Mistral (`loader.py`: `if temb_sha
 ~25% smaller. No published checkpoint found. Could be produced locally by stripping layers, but
 that requires downloading the full encoder first — saves disk, not bandwidth.
 
-#### VRAM reality check (unchanged from the pre-download analysis)
+#### VRAM prediction vs measured reality
 
-The transformer alone is 19.59 GiB against **14.4 GiB usable VRAM**. It will have to stream weights
-over PCIe 4.0 x8 via `comfy-aimdo` on every forward pass. Expect it to be substantially slower than
-klein-9B (19.7 s) or Z-Image (5 s). That prediction is still untested — no encoder, no render.
+The pre-download analysis predicted this would stream over PCIe and run substantially slower. That
+was correct, and here are the actual numbers:
+
+| | Predicted | **Measured** |
+|---|---|---|
+| Runs at all? | yes, via offload | ✅ yes |
+| Peak VRAM | over 14.4 GiB, needs offload | **15,397 MiB of 16,311 (94%)** |
+| Speed vs klein | "substantially slower" | **80 s vs 22 s — 3.6x** |
+| Speed vs Z-Image | — | **80 s vs 6 s — 13x** |
+
+The log confirms the mechanism: `Model Flux2 prepared for dynamic VRAM loading. 20061MB Staged`.
+Warm renders were consistent at **75.8–81.9 s** across 16 generations, 97.7 s cold.
+
+At 94% VRAM occupancy there is almost no headroom — a higher resolution would likely OOM, and
+nothing else can use the GPU while it runs.
+
+See `MODEL-COMPARISON.md` for the full three-way comparison.
 
 ### Prompting
 See **`PROMPTING.md`** — tested recipes for photorealistic people, the word

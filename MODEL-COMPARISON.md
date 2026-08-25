@@ -1,43 +1,46 @@
-# Z-Image Turbo vs FLUX.2-klein-9B — strengths and weaknesses
+# Z-Image Turbo vs FLUX.2-klein-9B vs FLUX.2-dev — strengths and weaknesses
 
-Both NVFP4, both on an RTX 5060 Ti (sm_120), both at 832x1216. Findings below come from
-**~100 generated images across five batches** on 2026-08-24/25, all inspected individually.
+All three NVFP4, on an RTX 5060 Ti (sm_120), all at 832x1216. Findings come from
+**~115 generated images across six batches** on 2026-08-24/25, all inspected individually.
 FLUX.1-dev was also compared before being removed from the machine; its results are kept where
 they add contrast.
 
 **Settings used throughout:** Z-Image 8 steps / cfg 1.0 / euler-simple. klein-9B 28 steps /
-guidance 2.0 / cfg 1.0 / euler-simple, `EmptyFlux2LatentImage`.
+guidance 2.0. FLUX.2-dev 28 steps / guidance 4.0. Both FLUX.2 models use `EmptyFlux2LatentImage`
+and cfg 1.0 / euler-simple.
 
 ---
 
 ## The one-line answer
 
-**Z-Image Turbo is the better default. klein-9B is the better instrument.**
+**Z-Image Turbo is the better default. klein-9B is the better instrument. FLUX.2-dev is the
+quality ceiling you pay dearly for.**
 
-Z-Image is ~3.7x faster, uses 4 GiB less VRAM, and has produced zero defects in ~50 renders.
-klein-9B produces visibly finer material and environmental detail when it works, but needs
-checking — and is markedly riskier in low light.
+Z-Image is 13x faster than FLUX.2-dev, uses half the VRAM, and has produced zero defects in ~50
+renders. klein-9B gives most of FLUX.2-dev's detail at a quarter of the time. FLUX.2-dev is the
+best renderer here but takes **80 seconds an image** and runs at 94% VRAM occupancy.
 
 ---
 
 ## Head-to-head summary
 
-| Axis | Z-Image Turbo | FLUX.2-klein-9B | Winner |
-|---|---|---|---|
-| **Speed** (832x1216, warm) | **6.0 s** (8 steps) | 22 s (28 steps) | **Z-Image, 3.7x** |
-| **Peak VRAM** | **8.0 GiB** | 11.7 GiB | **Z-Image** |
-| **Model size on disk** | **4.20 + 3.24 GiB** | 5.37 + 6.34 GiB | **Z-Image** |
-| **Reliability** | ~50 renders, **0 defects** | ~1 in 5 dim scenes need a re-roll | **Z-Image** |
-| **Skin rendering** | consistently clean | speckle artifact risk in low light | **Z-Image** |
-| **Hands** | clean, incl. two-hand tool grips | clean, occasionally softer | **Z-Image, narrowly** |
-| **Prompt adherence** | excellent | excellent | tie |
-| **Material / texture detail** | good | **noticeably finer** | **klein** |
-| **Environmental complexity** | good | **best available here** | **klein** |
-| **Reflection geometry** | good, occasional pose mismatch | **excellent, multi-mirror consistent** | **klein** |
-| **Small metallic detail** | good | **excellent (filigree, chain links)** | **klein** |
-| **Multiple faces** | good | good, distinct faces | tie |
-| **Text rendering** | gibberish words, correct numbers | gibberish words, correct numbers | tie (both poor) |
-| **Licence** | **Apache 2.0 — commercial OK** | non-commercial only | **Z-Image** |
+| Axis | Z-Image Turbo | FLUX.2-klein-9B | FLUX.2-dev | Winner |
+|---|---|---|---|---|
+| **Speed** (832x1216, warm) | **6.0 s** | 22 s | 80 s | **Z-Image, 13x over dev** |
+| **Peak VRAM** | **8.0 GiB** | 11.7 GiB | **15.0 GiB (94% full)** | **Z-Image** |
+| **Disk (transformer + encoder)** | **7.4 GiB** | 11.7 GiB | 31.0 GiB | **Z-Image** |
+| **Reliability** | ~50 renders, **0 defects** | ~1 in 5 dim scenes re-roll | 16 renders, 0 skin defects | **Z-Image** |
+| **Skin rendering** | consistently clean | speckle risk in low light | **clean, incl. dim scenes** | Z-Image / dev |
+| **Hands** | clean | clean, sometimes softer | clean | tie |
+| **Prompt adherence** | excellent | excellent | good, occasional scene miss | Z-Image / klein |
+| **Material / texture detail** | good | very fine | **finest** | **dev, narrowly over klein** |
+| **Environmental complexity** | good | excellent | excellent | klein / dev |
+| **Reflection geometry** | pose mismatch seen | **excellent** | coherent but missed the subject | **klein** |
+| **Small metallic detail** | good | **excellent** | **excellent** | klein / dev |
+| **Colour handling** | natural | natural | **pushes saturation harder** | Z-Image / klein |
+| **Unprompted artifacts** | none | none | **film-border frame edges** | Z-Image / klein |
+| **Text rendering** | gibberish words, correct numbers | same | same | tie (all poor) |
+| **Licence** | **Apache 2.0 — commercial OK** | non-commercial | non-commercial | **Z-Image** |
 
 ---
 
@@ -116,21 +119,56 @@ bypasses it.
 
 ---
 
-## Shared weaknesses (both models)
+## FLUX.2-dev — strengths
+
+**The highest quality ceiling of the three.** Skin rendering is genuinely filmic, jewellery
+filigree and chain links resolve as well as klein's, and lighting is handled with more subtlety.
+
+**Clean skin in low light — the artifact is klein-specific.** The `bus_night` scene that produced
+speckling on klein-9B came out completely clean on FLUX.2-dev, as did `pub_night`. This is useful
+diagnostic information: the low-light skin artifact is **not** a FLUX.2 family trait, it is
+specific to klein-9B (and most likely to its quantized Qwen3-8B encoder).
+
+**It runs at all**, which was not a given. The 19.59 GiB transformer against 14.4 GiB usable VRAM
+works via `comfy-aimdo` dynamic offload — the log shows `Model Flux2 prepared for dynamic VRAM
+loading. 20061MB Staged`.
+
+## FLUX.2-dev — weaknesses
+
+**80 seconds per image.** Warm renders were remarkably consistent at 75.8–81.9 s across 16
+generations (97.7 s cold). That is **13x Z-Image and 3.6x klein-9B** for output that is better but
+not 13x better.
+
+**94% VRAM occupancy.** Peak observed 15,397 MiB of 16,311. Nothing else can touch the GPU while
+it runs, and there is very little headroom — a larger resolution would likely OOM.
+
+**31.0 GiB of disk** for transformer plus encoder, versus 7.4 GiB for Z-Image.
+
+**Unprompted film-border artifact.** Several renders came back with a visible film-frame border
+drawn around all four edges that was never requested. Neither other model does this.
+
+**Pushes colour harder.** The `fish_market` scene came out considerably more saturated blue than
+klein's version of the identical prompt.
+
+**Missed the subject in the reflection probe.** The two-mirror fitting-room scene produced two
+geometrically consistent reflections but no real subject in frame — coherent, but not what the
+prompt described. klein handled the same probe correctly.
+
+## Shared weaknesses (all three models)
 
 **Text is unusable.** Words on signs, menus, book spines and packaging are consistently
-gibberish on both. Numbers and currency symbols render correctly, which is a curious and
+gibberish on all three. Numbers and currency symbols render correctly, which is a curious and
 reproducible split. If a render needs legible words, neither model will provide them.
 
 **Ethnicity adherence is inconsistent.** Both occasionally return a subject who does not match the
 requested ethnicity — a requested Latina reading as ambiguous/white on Z-Image, and a
 two-subject prompt returning two East Asian women when one was specified as Latina on klein.
 Naming specific features (skin tone, hair texture) rather than a demonym alone appears to help,
-though this has not been tested systematically.
+though this has not been tested systematically. Affects all three.
 
 **Prompt scope drift on wardrobe.** Soft realism cues like "unretouched" and "no makeup" can pull
 a render toward more undressed framing than the scene implied. Stating wardrobe explicitly
-("fully clothed", "wearing a t-shirt") reliably prevents this on both.
+("fully clothed", "wearing a t-shirt") reliably prevents this on all three.
 
 ---
 
@@ -144,5 +182,21 @@ inspecting it.
 (fabric, food, tools, weathered surfaces), reflections need to be geometrically correct, or you
 are producing a small number of hero images and will inspect each one.
 
+**Use FLUX.2-dev when:** the image genuinely matters more than the 80 seconds — a hero shot, a
+final render, something where klein's texture is not quite enough. Not for iteration, not for
+volume, and not while you need the GPU for anything else.
+
 **Always, for klein-9B face renders in low light:** generate 2-3 seeds and look at each. Do not
 trust a single render because the log showed no errors.
+
+### Cost of a single image, put plainly
+
+| | Time | You could instead have |
+|---|---:|---|
+| Z-Image | 6 s | — |
+| klein-9B | 22 s | 3.7 Z-Image renders |
+| FLUX.2-dev | 80 s | **13 Z-Image renders**, or 3.6 klein renders |
+
+For exploratory work that ratio matters enormously: thirteen Z-Image attempts at a prompt will
+almost always beat one FLUX.2-dev attempt, because the bottleneck in practice is finding the right
+prompt and seed, not the model's ceiling.
