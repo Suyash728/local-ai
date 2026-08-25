@@ -5,6 +5,7 @@ What is installed, where things live, and how to start them.
 **Getting photoreal people out of FLUX:** `PROMPTING.md`.
 **Which image model to use:** `MODEL-COMPARISON.md`.
 **Using ComfyUI's browser UI:** `COMFYUI-WEB.md`.
+**Talking to the Ollama models:** `OLLAMA-ACCESS.md`.
 
 | | |
 |---|---|
