@@ -461,3 +461,61 @@ Book and sign text remains gibberish across both models, as expected for the FLU
 |---|---:|
 | Z-Image Turbo (8 steps) | 6.0 s |
 | FLUX.2-klein-9B (28 steps) | 20-22 s |
+
+---
+
+## Third batch — eight scenes, deliberately split bright/dim (2026-08-25)
+
+Sixteen images, eight scenes across both models. Scenes chosen to **test the low-light hypothesis**
+from the previous batch: four well-lit, four dim. Clean-skin language throughout.
+
+| Scene | Light | Z-Image | klein-9B |
+|---|---|---|---|
+| Balcony laundry (Filipina) | bright | ![z](docs/samples/b3_zimg_balcony_laundry.jpg) | ![k](docs/samples/b3_klein_balcony_laundry.jpg) |
+| Fish market dawn (Japanese) | dim-ish | ![z](docs/samples/b3_zimg_fish_market.jpg) | ![k](docs/samples/b3_klein_fish_market.jpg) |
+| Dance studio (Latina) | bright | ![z](docs/samples/b3_zimg_dance_studio.jpg) | ![k](docs/samples/b3_klein_dance_studio.jpg) |
+| Farmers market (South Asian) | bright | ![z](docs/samples/b3_zimg_farmers_market.jpg) | ![k](docs/samples/b3_klein_farmers_market.jpg) |
+| Pub at night (Irish) | dim | ![z](docs/samples/b3_zimg_pub_night.jpg) | ![k](docs/samples/b3_klein_pub_night.jpg) |
+| Night bus (Vietnamese) | dim | ![z](docs/samples/b3_zimg_bus_night.jpg) | ![k](docs/samples/b3_klein_bus_night.jpg) |
+| Clinic waiting room (Middle Eastern) | flat | ![z](docs/samples/b3_zimg_clinic_waiting.jpg) | ![k](docs/samples/b3_klein_clinic_waiting.jpg) |
+| Construction site (Black) | bright | ![z](docs/samples/b3_zimg_construction.jpg) | ![k](docs/samples/b3_klein_construction.jpg) |
+
+### The low-light hypothesis holds up; skin tone does not explain it
+
+The previous batch flagged that klein's residual artifact appeared in the two dimmest scenes, but
+also noted both were non-white subjects and six samples could not separate the two variables.
+This batch separates them:
+
+- **`construction` — dark-skinned subject, bright midday sun, completely clean.** This is the
+  decisive counter-case. If skin tone were the driver, this render should have failed.
+- **`bus_night` — faint speckling on the cheek**, much milder than the earlier garment-bleed but
+  visible. Dim scene again.
+- **`pub_night` — clean**, despite being dim. So low light raises risk without guaranteeing failure.
+
+Across all three batches klein's artifact has appeared **only in dim scenes, never in a well-lit
+one**, and has now appeared in a dim scene with a light-skinned subject as well as dark-skinned
+ones. Working conclusion: **low light is the risk factor; skin tone is not.**
+
+Still worth stating plainly: this is an observational pattern over ~19 klein renders, not a
+controlled experiment. It is enough to guide practice, not enough to call a mechanism.
+
+### Z-Image: clean across all eight again
+
+Running total across three batches: **20 of 20 clean, zero artifacts.** The balcony shot has both
+arms raised pegging a shirt with correctly formed hands — hands continue not to be a weakness on
+this model.
+
+### klein-9B's environmental ceiling
+
+`fish_market` is the best environmental render produced in this project: cold blue pre-dawn light
+against warm bare bulbs, visible breath in the cold, wet rubber gloves with correct specularity,
+ice texture in the crate, plausible Japanese signage shapes. Z-Image's version of the same scene is
+also excellent and clean — the two are genuinely close here, with klein slightly ahead on material
+detail and Z-Image ahead on nothing needing a re-roll.
+
+### Timing (warm)
+
+| | Per image |
+|---|---:|
+| Z-Image Turbo (8 steps) | 6.0 s |
+| FLUX.2-klein-9B (28 steps) | 22 s |

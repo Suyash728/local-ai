@@ -51,3 +51,5 @@ input/
 .trackb3-*.log
 .trackb4-*.sh
 .trackb4-*.log
+.trackb5-*.sh
+.trackb5-*.log
