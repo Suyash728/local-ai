@@ -3,6 +3,7 @@
 What is installed, where things live, and how to start them.
 **Rules for Claude Code sessions:** `CLAUDE.md`. **Full plan & reasoning:** `PLAN.md`.
 **Getting photoreal people out of FLUX:** `PROMPTING.md`.
+**Which image model to use:** `MODEL-COMPARISON.md`.
 
 | | |
 |---|---|
@@ -10,7 +11,7 @@ What is installed, where things live, and how to start them.
 | Track A — LLMs | ✅ **DONE & VERIFIED** (2026-08-23) |
 | Track B — ComfyUI | ✅ **DONE & VERIFIED** (2026-08-24) |
 | Track C — Video | ⛔ deferred by decision (needs 64 GiB RAM) |
-| Free disk | ~86 GiB |
+| Free disk | ~77 GiB |
 
 ---
 
@@ -311,16 +312,16 @@ When it renders clean, texture fidelity is the standout — individual fabric fi
 grain, natural freckle placement, finer than either FLUX.1 or Z-Image at the same resolution. The
 open question is how often "when it renders clean" actually holds.
 
-### FLUX.2-dev NVFP4 — ⚠️ PARTIALLY INSTALLED, NOT RUNNABLE (2026-08-25)
+### FLUX.2-dev NVFP4 — fully installed 2026-08-25, not yet test-rendered
 
-**The transformer is downloaded. The text encoder is not. This model cannot generate anything
-until an encoder is added.** Deliberate — the encoder download was deferred.
+**All three components are now present.** No test render has been run yet — the VRAM prediction
+below is still unverified.
 
 | Component | Status | Size |
 |---|---|---|
 | `diffusion_models/flux2-dev-nvfp4.safetensors` | ✅ downloaded, verified | 19.59 GiB |
 | `vae/flux2-vae.safetensors` | ✅ already present (shared with klein-9B) | 0.31 GiB |
-| **Mistral-3-Small text encoder** | ❌ **NOT DOWNLOADED** | see options below |
+| `text_encoders/mistral_3_small_flux2_fp4_mixed.safetensors` | ✅ downloaded, verified | 11.43 GiB |
 
 Verified on arrival: 731 tensors, header parses, declared data end == file size, NVFP4
 quantization metadata present, `chattr +C` applied. Download took 55 min at ~6 MB/s.
@@ -439,3 +440,20 @@ while the new one grew. Cost 3.02 GiB of re-download.
 
 **Implication:** do not interrupt a multi-GB `hf download` expecting to continue later. If one is
 killed, delete the stale `.incomplete` to reclaim the space — nothing will ever use it.
+
+---
+
+## Correction: the Comfy-Org fp4 Mistral encoder IS the pruned variant
+
+An earlier note in this file said ComfyUI supports a 30-layer pruned Mistral
+(`TEModel.MISTRAL3_24B_PRUNED_FLUX2`) but that no published checkpoint could be found.
+
+**That was wrong.** Inspecting the downloaded
+`mistral_3_small_flux2_fp4_mixed.safetensors` shows layer indices **0–29 only** — 30 layers, not
+the full Mistral-Small-3.2-24B's 40. `model.layers.39.post_attention_layernorm.weight` is absent,
+which is exactly the key ComfyUI checks to route to `flux2_te(pruned=True)` and set
+`num_layers = 30`.
+
+So the standard Comfy-Org fp4 encoder already **is** the pruned variant. There was never a
+separate one to hunt for, and its 11.43 GiB is smaller than a full 24B at 4 bits precisely because
+a quarter of the layers are gone.
