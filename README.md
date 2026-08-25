@@ -4,6 +4,7 @@ What is installed, where things live, and how to start them.
 **Rules for Claude Code sessions:** `CLAUDE.md`. **Full plan & reasoning:** `PLAN.md`.
 **Getting photoreal people out of FLUX:** `PROMPTING.md`.
 **Which image model to use:** `MODEL-COMPARISON.md`.
+**Using ComfyUI's browser UI:** `COMFYUI-WEB.md`.
 
 | | |
 |---|---|
