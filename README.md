@@ -6,6 +6,7 @@ What is installed, where things live, and how to start them.
 **Which image model to use:** `MODEL-COMPARISON.md`.
 **Using ComfyUI's browser UI:** `COMFYUI-WEB.md`.
 **Talking to the Ollama models:** `OLLAMA-ACCESS.md`.
+**Giving a model live web access:** `WEB-ACCESS.md`.
 
 | | |
 |---|---|
