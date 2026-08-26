@@ -4,8 +4,14 @@ Companion to `OLLAMA-ACCESS.md` (how to talk to the models) and `README.md` (wha
 This covers `scripts/ollama_web.py` — a script that lets a tool-calling-capable model search the
 web and fetch pages before answering.
 
+**Update 2026-08-26:** the default model changed from `qwen2.5-coder:14b-instruct-q4_K_M` to
+`gpt-oss:20b`, which is verified categorically more reliable at tool-calling — see "Which model"
+below. The Known limitations section further down was written against qwen2.5-coder's behavior;
+it still applies if you pass `--model qwen2.5-coder:14b-instruct-q4_K_M`, but gpt-oss did not
+reproduce any of those failures in the same tests.
+
 **Read this before trusting an answer from it.** The mechanism works and is verified below with
-real transcripts, but the model's judgement about *when* to use it is unreliable — documented
+real transcripts, but a model's judgement about *when* to use it can be unreliable — documented
 honestly, with numbers, in the Known limitations section. Don't skip that part.
 
 ---
@@ -18,18 +24,38 @@ and *something* on the client side actually performing that search and feeding t
 Ollama only provides the middle piece (the tool-calling protocol) — the actual search execution
 has to be supplied by the caller. `scripts/ollama_web.py` is that caller.
 
-## Which model — and why only one
+## Which model
 
 ```fish
-ollama show --json qwen2.5-coder:14b-instruct-q4_K_M | grep -o '"capabilities":\[[^]]*\]'
+curl -s http://127.0.0.1:11434/api/show -d '{"model":"gpt-oss:20b"}' | python3 -c \
+  "import json,sys; print(json.load(sys.stdin)['capabilities'])"
 ```
 
-Only `qwen2.5-coder:14b-instruct-q4_K_M` has `tools` in its capability list.
-`gemma3:12b` does not — verified by sending it a `tools` field directly: it responds normally and
-never touches `tool_calls`, it just silently ignores the field. There is no way to give gemma3 web
-access through Ollama's native mechanism; it would need a different approach entirely
-(e.g. manually injecting search results into the prompt yourself, with no model-driven decision
-about when to search).
+Two models on this machine have `tools` in their capability list: `gpt-oss:20b` and
+`qwen2.5-coder:14b-instruct-q4_K_M`. `gemma3:12b` does not — verified by sending it a `tools` field
+directly: it responds normally and never touches `tool_calls`, it just silently ignores the field.
+There is no way to give gemma3 web access through Ollama's native mechanism; it would need a
+different approach entirely (e.g. manually injecting search results into the prompt yourself, with
+no model-driven decision about when to search).
+
+**Default: `gpt-oss:20b`.** Head-to-head against qwen2.5-coder on the identical failure cases that
+motivated the fallback-parsing and duplicate-call-guard code below:
+
+| | qwen2.5-coder:14b-instruct-q4_K_M | gpt-oss:20b |
+|---|---|---|
+| Structured `tool_calls` populated | inconsistent — 3 different malformed text forms observed | clean every time tested |
+| Date query (search → fetch → answer) | needed the duplicate-call guard to escape a 5x identical-fetch loop | one search, correct answer, no loop |
+| "12 * 7, no need to search" | 1 success in 3 identical attempts, other 2 exhausted 8 rounds searching math sites | 3 for 3, answered directly, zero tool calls |
+| Measured throughput | not benchmarked here | **75.8 tok/s**, 100% GPU, 14.2 GiB VRAM |
+
+The likely reason: gpt-oss uses OpenAI's Harmony response format, which Ollama parses internally
+(token injection, role/channel handling) rather than relying on the model reproducing an exact
+`<tool_call>` tag sequence in its own output. qwen2.5-coder's tool format depends on the model
+getting that tag-wrapping right every time at Q4 quantization, and it doesn't always.
+
+`qwen2.5-coder:14b-instruct-q4_K_M` remains available via `--model` — still the better pick if you
+specifically need its code-domain knowledge for a query, but tested less reliable as a *tool-use*
+loop.
 
 ## No API key needed
 
@@ -101,14 +127,34 @@ in testing — the model responded correctly on the next turn every time this wa
 
 ## Verified working, real transcripts
 
+### gpt-oss:20b (current default)
+
 ```
-$ ./scripts/ollama_web.py -q "Search the web: what year did the RTX 5060 Ti release?"
+$ ./scripts/ollama_web.py "What is today's exact date? Search the web to confirm it."
+  [tool call] web_search({'query': 'current date 2026-08-26'})
+The exact date today is Wednesday, August 26, 2026.
+(one search, no loop, no duplicate-call guard needed)
+
+$ ./scripts/ollama_web.py "Search and tell me: what does the acronym NVFP4 stand for?"
+  [tool call] web_search({'query': 'NVFP4 acronym'})
+  [tool call] fetch_url({'url': 'https://developer.nvidia.com/blog/introducing-nvfp4...'})
+NVFP4 stands for NVIDIA Floating-Point 4 - the 4-bit floating-point data type NVIDIA
+introduced with its Blackwell GPU architecture...
+
+$ for i in 1 2 3; do ./scripts/ollama_web.py -q "What is 12 * 7? No need to search."; done
+12 × 7 = 84.
+12 × 7 = **84**
+12 × 7 = 84.
+(3 for 3, zero tool calls - see the head-to-head table above for qwen's score on the same prompt)
+```
+
+### qwen2.5-coder:14b-instruct-q4_K_M (via `--model`)
+
+```
+$ ./scripts/ollama_web.py --model qwen2.5-coder:14b-instruct-q4_K_M -q "Search the web: what year did the RTX 5060 Ti release?"
 The RTX 5060 Ti was released on April 16, 2025.
 
-$ ./scripts/ollama_web.py -q "Search: is CachyOS based on Arch Linux?"
-CachyOS is based on Arch Linux.
-
-$ ./scripts/ollama_web.py "What is today's exact date? Search the web to confirm it."
+$ ./scripts/ollama_web.py --model qwen2.5-coder:14b-instruct-q4_K_M "What is today's exact date? Search the web to confirm it."
   [tool call] web_search({'query': "today's date"})
   [tool call] fetch_url({'url': 'https://www.calendardate.com/todays.htm'})
   [tool call] fetch_url({'url': 'https://www.calendardate.com/todays.htm'})
@@ -122,7 +168,11 @@ date and CachyOS's base distro are independently verifiable facts, both correct.
 
 ---
 
-## Known limitations — read before trusting an answer
+## Known limitations of qwen2.5-coder as the tool-calling model — read before using `--model qwen2.5-coder:14b-instruct-q4_K_M`
+
+None of the following were reproduced with the current default, `gpt-oss:20b`, in the same tests
+(see the head-to-head table above). They apply specifically when overriding `--model` to
+qwen2.5-coder.
 
 **The model over-uses the tool, sometimes badly.** Asked `"What is 12 * 7? No need to search"` —
 an explicit instruction not to search, for something the model can trivially compute — it searched

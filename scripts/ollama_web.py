@@ -2,9 +2,13 @@
 """
 Give a tool-calling-capable Ollama model live web access.
 
-Only qwen2.5-coder:14b-instruct-q4_K_M supports Ollama's native tool-calling
-on this machine (verified: `ollama show --json` capabilities include "tools").
-gemma3:12b does not - it silently ignores a `tools` field instead of using it.
+Default model is gpt-oss:20b - verified categorically more reliable at this
+than qwen2.5-coder:14b-instruct-q4_K_M (see WEB-ACCESS.md for the measured
+comparison: clean structured tool_calls every time vs. qwen's frequent
+text-embedded JSON, no looping on repeated identical calls, 3/3 correct
+restraint on a trivial no-tool-needed question vs. qwen's 1/3). Pass --model
+to use qwen2.5-coder instead if needed. gemma3:12b has no tool-calling
+capability at all in Ollama - it silently ignores a `tools` field.
 
 Two tools are exposed: web_search (DuckDuckGo HTML, no API key) and fetch_url
 (reads a page and returns its text). Stdlib only - no new dependencies.
@@ -245,7 +249,7 @@ def run(model, prompt, verbose=True):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("prompt")
-    ap.add_argument("--model", default="qwen2.5-coder:14b-instruct-q4_K_M")
+    ap.add_argument("--model", default="gpt-oss:20b")
     ap.add_argument("-q", "--quiet", action="store_true", help="suppress tool-call trace on stderr")
     args = ap.parse_args()
     print(run(args.model, args.prompt, verbose=not args.quiet))

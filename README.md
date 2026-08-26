@@ -50,10 +50,11 @@ systemctl --user stop ollama       # frees VRAM immediately
 **`nvcc` at `/opt/cuda/bin/nvcc`** (v13.3.73, `NVCC_CCBIN=/usr/bin/g++-15`) — needed if
 SageAttention ever gets built from source in Track B.
 
-### Models (18 GiB, in `~/AI/models/ollama`)
+### Models (31 GiB, in `~/AI/models/ollama`)
 
 | Model | Size | Role | Measured |
 |---|---:|---|---|
+| `gpt-oss:20b` | 13 GB | **tool-calling / agentic driver** (see `WEB-ACCESS.md`) | **75.8 tok/s**, 100% GPU, 14.2 GiB VRAM |
 | `qwen2.5-coder:14b-instruct-q4_K_M` | 9.0 GB | code chat / edit / agent | **44.0 tok/s** |
 | `gemma3:12b` | 8.1 GB | general purpose, 128k ctx, vision | **47.8 tok/s** |
 | `qwen2.5-coder:1.5b-base` | 986 MB | tab autocomplete (FIM) | **265.1 tok/s** |
@@ -62,6 +63,14 @@ SageAttention ever gets built from source in Track B.
 **Why `1.5b-base` and not instruct:** autocomplete is fill-in-the-middle, not chat, and it is
 latency-bound. A 14B would feel awful for tab-completion. Verified: given
 `def binary_search(arr, target):` it continues the body rather than explaining it.
+
+**`gpt-oss:20b`, added 2026-08-26**, Apache 2.0, native MXFP4 (fits fully in VRAM, no offload).
+Ollama capabilities: `['completion', 'tools', 'thinking']` — the only model here with a `thinking`
+capability, and verified categorically more reliable than qwen2.5-coder at actual tool-calling
+(clean structured `tool_calls` every time vs. qwen's frequent malformed text output; 3/3 vs 1/3 on
+restraining from unnecessary tool use). Full comparison in `WEB-ACCESS.md`. **Only one big model
+stays resident at a time** (`OLLAMA_MAX_LOADED_MODELS=1`), so this competes with `qwen2.5-coder:14b`
+and `gemma3:12b` for the loaded slot.
 
 ---
 

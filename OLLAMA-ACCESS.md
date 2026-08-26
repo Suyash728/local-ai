@@ -31,6 +31,7 @@ model (8-15 GB) exceeds 16 GiB. Stop one before starting the other if switching 
 
 | Model | Role | Notes |
 |---|---|---|
+| `gpt-oss:20b` | tool-calling / agentic driver | 75.8 tok/s measured — see `WEB-ACCESS.md` |
 | `qwen2.5-coder:14b-instruct-q4_K_M` | code chat / edit / agent | 44.0 tok/s measured |
 | `gemma3:12b` | general purpose | 128k context, vision-capable, 47.8 tok/s |
 | `qwen2.5-coder:1.5b-base` | tab-autocomplete **only** | base model, not instruct — continues code rather than chatting. Wrong choice for a conversation. |
