@@ -189,14 +189,6 @@ volume, and not while you need the GPU for anything else.
 **Always, for klein-9B face renders in low light:** generate 2-3 seeds and look at each. Do not
 trust a single render because the log showed no errors.
 
-### Cost of a single image, put plainly
-
-| | Time | You could instead have |
-|---|---:|---|
-| Z-Image | 6 s | — |
-| klein-9B | 22 s | 3.7 Z-Image renders |
-| FLUX.2-dev | 80 s | **13 Z-Image renders**, or 3.6 klein renders |
-
-For exploratory work that ratio matters enormously: thirteen Z-Image attempts at a prompt will
-almost always beat one FLUX.2-dev attempt, because the bottleneck in practice is finding the right
-prompt and seed, not the model's ceiling.
+For exploratory work, the speed ratio in the table above matters more than it looks: thirteen
+Z-Image attempts at a prompt will almost always beat one FLUX.2-dev attempt, because the real
+bottleneck is finding the right prompt and seed, not any single model's quality ceiling.

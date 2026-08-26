@@ -65,13 +65,10 @@ SageAttention ever gets built from source in Track B.
 latency-bound. A 14B would feel awful for tab-completion. Verified: given
 `def binary_search(arr, target):` it continues the body rather than explaining it.
 
-**`gpt-oss:20b`, added 2026-08-26**, Apache 2.0, native MXFP4 (fits fully in VRAM, no offload).
-Ollama capabilities: `['completion', 'tools', 'thinking']` — the only model here with a `thinking`
-capability, and verified categorically more reliable than qwen2.5-coder at actual tool-calling
-(clean structured `tool_calls` every time vs. qwen's frequent malformed text output; 3/3 vs 1/3 on
-restraining from unnecessary tool use). Full comparison in `WEB-ACCESS.md`. **Only one big model
-stays resident at a time** (`OLLAMA_MAX_LOADED_MODELS=1`), so this competes with `qwen2.5-coder:14b`
-and `gemma3:12b` for the loaded slot.
+**`gpt-oss:20b`**, Apache 2.0, native MXFP4, fits fully in VRAM. Verified categorically more
+reliable than qwen2.5-coder at tool-calling — clean structured `tool_calls` every time vs. qwen's
+frequent malformed output. Full comparison in `WEB-ACCESS.md`. Only one big model stays resident
+at a time (`OLLAMA_MAX_LOADED_MODELS=1`), competing with the other two for the loaded slot.
 
 ---
 
@@ -293,23 +290,13 @@ something a token bypasses).
   128 channels at 16x spatial downscale, vs FLUX.1's 16 channels at 8x.
 - `FluxGuidance` node is shared with FLUX.1 — no separate guidance node needed.
 
-**⚠️ Update — root cause found, corrected same day.** The first verification render used
-`guidance: 4.0` and produced blotchy red patches on the cheeks, at the time wrongly described here
-as "convincing windburn." Dropping guidance to 2.0 fixed 3 of 5 test scenes but not all — one
-(`grocery_aisle`) still showed a clear defect: dark blotches on the cheek in the exact same
-position as a stain on the subject's hoodie, a texture bleed-through between garment and face.
-
-**The actual cause was isolated by removing skin-imperfection language from the prompt** —
-"blemishes," "scars," "under-eye shadows" — while keeping every other realism cue (lighting,
-framing, wardrobe, "not looking at camera") unchanged. Result: **5 of 5 clean, including the exact
-scene that failed twice before.** The prompt phrase, not the guidance value, was driving the
-artifact. FLUX.1 and Z-Image handled the same imperfection language without this failure, so it
-looks specific to klein-9B's quantized Qwen3-8B text encoder.
-
-**Practical rule: keep skin-flaw language minimal or absent when prompting klein-9B.** Lighting,
-environment and framing cues are sufficient for realism on their own (see `PROMPTING.md`) and
-carry none of this risk. If a render does need a visible scar or blemish on this model, treat it
-as render-and-inspect, not trust-on-first-try.
+**Known issue: skin artifacts in low light.** Root-caused (not guessed at) to skin-imperfection
+language in the prompt ("blemishes," "scars") interacting badly with klein-9B's quantized Qwen3-8B
+encoder — dark blotches, sometimes bleeding garment texture onto the face. Guidance 2.0 (not the
+4.0 first tried) plus dropping that language from the prompt fixes most but not all cases; risk
+concentrates in dim scenes regardless of prompt wording. Full investigation and the practical rule
+(keep skin-flaw language minimal, inspect low-light renders before trusting them) in
+`PROMPTING.md`.
 
 #### Measured, 832x1216, 28 steps, guidance 2.0
 
@@ -341,25 +328,11 @@ quantization metadata present, `chattr +C` applied. Download took 55 min at ~6 M
 Licence: `flux-dev-non-commercial-license` — **not for commercial use**, same as klein-9B.
 Ungated, unlike klein-9B (no click-through needed).
 
-#### Text encoder options — none chosen yet
-
-The Mistral encoder is unavoidable: klein's Qwen3-8B cannot substitute (4096-dim vs Mistral's
-5120-dim, different architecture entirely).
-
-| Option | Size | vs fp4 baseline | Note |
-|---|---:|---|---|
-| `Comfy-Org/flux2-dev` → `mistral_3_small_flux2_fp4_mixed` | 11.43 GiB | baseline | the standard choice |
-| `gguf-org/flux2-dev-gguf` → `cow-mistral3-small-q2_k.gguf` | **7.20 GiB** | −4.23 GiB | Q2 on a *text encoder* is aggressive; prompt adherence degrades first |
-| `gguf-org/flux2-dev-gguf` → `cow-mistral3-small-iq4_xs.gguf` | 10.36 GiB | −1.07 GiB | barely saves anything |
-| `silveroxides/...` fp8mixed variants | 16.8–17.2 GiB | *larger* | no benefit here |
-
-GGUF route is viable — ComfyUI-GGUF handles Mistral (`loader.py`: `if temb_shape == (131072,
-5120): # probably Mistral`), and the `CLIPLoaderGGUF` node is already installed.
-
-**Unsourced but supported:** ComfyUI natively handles a 30-layer pruned Mistral
-(`TEModel.MISTRAL3_24B_PRUNED_FLUX2`, detected by absence of `model.layers.39.*`), which would be
-~25% smaller. No published checkpoint found. Could be produced locally by stripping layers, but
-that requires downloading the full encoder first — saves disk, not bandwidth.
+The text encoder in use (`mistral_3_small_flux2_fp4_mixed`, 11.43 GiB) already **is** the 30-layer
+pruned Mistral variant ComfyUI supports natively (`TEModel.MISTRAL3_24B_PRUNED_FLUX2`) — confirmed
+by inspecting its layer indices (0-29 only; the full model has 40). A smaller Q2 GGUF exists
+(`gguf-org/flux2-dev-gguf`, 7.20 GiB) but Q2 on a *text encoder* degrades prompt adherence first,
+which is the axis that matters most here — not used.
 
 #### VRAM prediction vs measured reality
 
@@ -386,25 +359,11 @@ See **`PROMPTING.md`** — tested recipes for photorealistic people, the word
 blacklist, guidance/step settings, and the known failure modes (hands, mirror geometry,
 NVFP4's cost on fine detail).
 
-### Measured on this machine — 2026-08-24
+### FLUX.1-dev, for reference
 
-FLUX.1-dev NVFP4, 1024x1024, 20 steps, euler/simple, guidance 3.5:
-
-| | |
-|---|---|
-| Cold (incl. model load) | **25.3 s** |
-| Warm | **17.1 s** (~1.17 it/s) |
-| Peak VRAM | **12.3 GiB** of 15.5 |
-
-Raw kernel A/B, 4096^3 GEMM: **bf16 3.25 ms vs nvfp4 0.49 ms = 6.68x**. End-to-end sampling gains
-are much smaller — attention, norms, VAE and text encoding are not FP4.
-
-ComfyUI log confirms the path is live:
-```
-Found quantization metadata version 1
-Detected mixed precision quantization
-Native ops: convrot_w4a4, float8_e4m3fn, int8_tensorwise, mxfp8, float8_e5m2, asym_w4a8_int8, nvfp4
-```
+1024x1024, 20 steps, guidance 3.5: **25.3 s cold / 17.1 s warm**, peak VRAM **12.3 GiB**. Raw
+kernel A/B on this card: 4096³ GEMM bf16 3.25 ms vs NVFP4 0.49 ms (6.68x) — end-to-end sampling
+gains are smaller since attention, norms, VAE and text encoding aren't FP4.
 
 ---
 
@@ -412,74 +371,24 @@ Native ops: convrot_w4a4, float8_e4m3fn, int8_tensorwise, mxfp8, float8_e5m2, as
 
 **ComfyUI's `requirements.txt` will clobber your torch.** It lists bare `torch`, `torchvision`,
 `torchaudio`, which resolve from PyPI and overwrite the cu130 build. Install from the filtered
-`.comfy-reqs-notorch.txt` (keeps `torchsde`, which is a different package), and **verify
-`torch.__version__` still ends in `+cu130` afterwards.**
+`.comfy-reqs-notorch.txt` (keeps `torchsde`, a different package), and verify
+`torch.__version__` still ends in `+cu130` afterward.
 
-**HF's Xet downloader can deadlock.** It wedged at 2.07/5.15 GiB — 0 bytes for 75 s, process in
-`futex_wait` with 18 idle ESTABLISHED sockets. Fix: `HF_HUB_DISABLE_XET=1` and
-`HF_HUB_DOWNLOAD_TIMEOUT=60`. The Xet and plain paths use different partial-file names and cannot
-resume each other, so a switch costs the partial.
+**HF's Xet downloader can deadlock.** Wedged once at 2.07/5.15 GiB — 0 bytes for 75 s, process in
+`futex_wait`. Fix: `HF_HUB_DISABLE_XET=1` and `HF_HUB_DOWNLOAD_TIMEOUT=60`. Xet and plain-HTTP
+partials use different filenames and can't resume each other, so switching mid-download costs the
+partial.
 
-**`du` lies about the uv cache on Btrfs.** uv writes reflink copies, so cache and venv share
-extents. `uv cache clean` reported removing 12.9 GiB but `df` gained only 5.4 GiB. Judge reclaim by
-`df`, never `du`.
+**`hf download` does not resume across invocations either** — a killed download's partial carries
+a per-invocation suffix, so restarting starts a fresh file alongside the stale one. Confirmed
+directly (same blob/sha256, different suffixes). Don't interrupt a multi-GB `hf download`
+expecting to resume; delete the stale `.incomplete` afterward to reclaim the space.
+
+**`du` lies about the uv cache on Btrfs.** uv writes reflink copies sharing extents with the venv;
+`uv cache clean` reported removing 12.9 GiB but `df` only gained 5.4 GiB. Judge reclaim by `df`.
 
 **Don't `pkill -f` a string that appears in your own command line** — it matches the killing shell.
 
 ### HF authentication
-Token stored at `~/AI/models/hf/token` (perms 0600, inside the gitignored `models/` subvolume).
-`hf auth whoami` → `NotSoPro`. Read-only scope + `canReadGatedRepos`, so gated repos such as
-`black-forest-labs/FLUX.1-dev` are reachable directly.
-
----
-
-## Verification record — 2026-08-23
-
-- `library=CUDA compute=12.0 name=CUDA0 ... libdirs=ollama,cuda_v13 driver=13.3` → sm_120 on the CUDA 13 backend
-- Streamed completion from `qwen2.5-coder:14b-instruct-q4_K_M`: 99 tokens, 44.0 tok/s, `done_reason: stop`
-- `ollama ps` → `100% GPU`, context 16384; `nvidia-smi` → llama-server at 10062 MiB
-- All 4 models generate/embed correctly; 0 pull failures
-- Idle (server up, no model): ollama absent from `nvidia-smi` compute list, ~9 W
-
-### Track B — 2026-08-24
-- `torch 2.13.0+cu130`, `torch.version.cuda 13.0`, `sm_120` in arch list, `get_device_capability() == (12, 0)`
-- live fp16 4096^2 matmul, bf16 matmul, fp8_e4m3fn cast — all executed on device
-- `comfy_kitchen` **cuda** backend reports `quantize_nvfp4` / `scaled_mm_nvfp4`; both executed on device
-- ComfyUI reached `To see the GUI go to: http://127.0.0.1:8188`
-- **A real FLUX NVFP4 image rendered**: `ComfyUI/output/flux_nvfp4_verify_00001_.png`,
-  1024x1024, std 47.7, 232,966 unique colours — inspected, coherent subject matter
-- torch re-verified as `+cu130` after every dependency install
-
-**Still not done:** Track C (video) remains deferred. SageAttention is not built.
-
----
-
-## Gotcha: `hf download` does not resume across invocations
-
-Discovered 2026-08-24 while switching a download from two files to one. Killing an `hf download`
-and restarting it **loses all progress**. The partial is written as
-`<blob-id>.<sha256>.<per-invocation-suffix>.incomplete`, and a new invocation generates a new
-suffix — so it starts a fresh file alongside the stale one rather than resuming.
-
-Verified directly: same blob id and sha256, suffixes `b5e371be` vs `eeb02795`, old file static
-while the new one grew. Cost 3.02 GiB of re-download.
-
-**Implication:** do not interrupt a multi-GB `hf download` expecting to continue later. If one is
-killed, delete the stale `.incomplete` to reclaim the space — nothing will ever use it.
-
----
-
-## Correction: the Comfy-Org fp4 Mistral encoder IS the pruned variant
-
-An earlier note in this file said ComfyUI supports a 30-layer pruned Mistral
-(`TEModel.MISTRAL3_24B_PRUNED_FLUX2`) but that no published checkpoint could be found.
-
-**That was wrong.** Inspecting the downloaded
-`mistral_3_small_flux2_fp4_mixed.safetensors` shows layer indices **0–29 only** — 30 layers, not
-the full Mistral-Small-3.2-24B's 40. `model.layers.39.post_attention_layernorm.weight` is absent,
-which is exactly the key ComfyUI checks to route to `flux2_te(pruned=True)` and set
-`num_layers = 30`.
-
-So the standard Comfy-Org fp4 encoder already **is** the pruned variant. There was never a
-separate one to hunt for, and its 11.43 GiB is smaller than a full 24B at 4 bits precisely because
-a quarter of the layers are gone.
+Token at `~/AI/models/hf/token` (perms 0600, inside the gitignored `models/` subvolume). Read-only
+scope + `canReadGatedRepos`, so gated repos like `FLUX.1-dev` are reachable directly.

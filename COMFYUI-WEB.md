@@ -57,6 +57,14 @@ back the exact node graph that produced it — model, prompt, seed, sampler sett
 This is the fastest way to get a working starting graph for any of the three installed models,
 since every one of them has already been run and saved at least once.
 
+**Or skip that and use the saved one.** A verified, correctly-wired Z-Image Turbo workflow lives
+at `ComfyUI/user/default/workflows/z-image-turbo.json` — it appears directly in the browser's
+Workflows sidebar (or Workflow menu → Open) as **"z-image-turbo-verified"**. Confirmed executing
+end-to-end with no shape errors before being saved. Just replace the placeholder positive-prompt
+text and hit Queue. Not tracked in git (`ComfyUI/` is gitignored — see `.gitignore`); if it's ever
+missing, the node graph to rebuild it is exactly the Z-Image settings table below, wired
+`UNETLoader → CLIPLoader → CLIPTextEncode(×2) → KSampler → VAEDecode → SaveImage`.
+
 **Queue button** runs the current graph once. Progress shows on the currently-executing node;
 finished images land in `ComfyUI/output/` and also appear in a preview panel. Queueing again while
 one job runs adds a second job rather than interrupting the first.
