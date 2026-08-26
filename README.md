@@ -7,6 +7,7 @@ What is installed, where things live, and how to start them.
 **Using ComfyUI's browser UI:** `COMFYUI-WEB.md`.
 **Talking to the Ollama models:** `OLLAMA-ACCESS.md`.
 **Giving a model live web access:** `WEB-ACCESS.md`.
+**Agentic coding with local models:** `OPENCODE.md`.
 
 | | |
 |---|---|
