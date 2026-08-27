@@ -164,6 +164,8 @@ under `$HOME`, not project-scoped like everything under `~/AI/`):
     }
   },
   "model": "ollama/gpt-oss-agent-32k",
+  "autoupdate": false,
+  "share": "disabled",
   "permission": {
     "read": "allow", "glob": "allow", "grep": "allow",
     "edit": "allow", "write": "allow", "bash": "allow", "webfetch": "allow",
@@ -237,6 +239,49 @@ interactive startup hung every bash-tool call with no error. If bash-tool tasks 
 `env SHELL=/bin/bash opencode run ...` to confirm before blaming the model.
 
 Logs land at `~/.local/share/opencode/log/opencode.log`.
+
+---
+
+## Keeping it local — it phones home by default
+
+**opencode contacts `api.opencode.ai` on every run, even with a purely local model.** Observed
+directly: a run using only `ollama/gpt-oss-agent-32k` opened a TLS connection to `104.20.32.17:443`,
+which is in `api.opencode.ai`'s A records. It is syncing a provider/model catalog it does not need
+here — our Ollama provider is defined locally in `opencode.json`, and a Modelfile tag like
+`gpt-oss-agent-32k` does not exist in any public catalog.
+
+Setting `"autoupdate": false` and `"share": "disabled"` in the config is **not** enough — the
+connection still happens. The switch that stops it is an environment variable:
+
+```fish
+set -Ux OPENCODE_DISABLE_MODELS_FETCH 1
+set -Ux OPENCODE_DISABLE_AUTOUPDATE 1
+```
+
+Both are set as fish **universal** variables, so they persist across reboots and apply to every
+shell. Verified after setting: **zero external connections** during a full run, while
+`opencode models ollama` still lists all four local models and tasks complete normally.
+
+They are also duplicated in VS Code's `settings.json` under `terminal.integrated.env.linux`, so the
+extension's terminal gets them whatever shell it launches:
+
+```json
+"terminal.integrated.env.linux": {
+  "OPENCODE_DISABLE_MODELS_FETCH": "1",
+  "OPENCODE_DISABLE_AUTOUPDATE": "1"
+}
+```
+
+**Does disabling the catalog hurt quality?** No. A first sample suggested it might (0/3 vs 3/3),
+but that was run-to-run variance — a second sample gave 2/3 with it enabled, matching 2/3 without.
+Confirmed there is no mechanism: opencode's resolved model metadata is byte-identical with the
+fetch on and off (`llm.provider=ollama llm.model=gpt-oss-agent-32k` both ways), because a local
+Modelfile tag under a user-defined provider was never in the catalog to begin with.
+
+Other `OPENCODE_DISABLE_*` variables exist (`_SHARE`, `_LSP_DOWNLOAD`, `_DEFAULT_PLUGINS`,
+`_EXTERNAL_SKILLS`, …) — read the full list with
+`strings (readlink -f (which opencode)) | grep -oE 'OPENCODE_[A-Z_]+' | sort -u`. Disabling the
+models fetch alone was sufficient to silence all outbound traffic.
 
 ---
 
