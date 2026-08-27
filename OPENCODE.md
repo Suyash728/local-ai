@@ -99,16 +99,38 @@ opencode's actual tool loop.** qwen2.5-coder remains registered in the config fo
 not recommended here — same finding as `WEB-ACCESS.md`, now confirmed on a second, more complex
 toolset.
 
-### A second bug hit and fixed along the way: opencode's directory permission wall
+### The `external_directory` wall — and its real cause (corrected 2026-08-27)
 
-While debugging, a run failed with `permission requested: external_directory (/tmp/...); auto-rejecting`.
-This looked at first like more model unreliability — it wasn't. opencode's own permission system
-auto-denies file access outside what it considers a safe project root when running non-interactively
-(no TTY to prompt for approval), and this session's scratchpad lives under a `/tmp/claude-.../`
-path that tripped it. Fixed by testing from an ordinary directory under `$HOME` instead, which is
-also how anyone would actually use this day to day. Not an opencode or model defect — worth
-knowing if a `run` invocation fails with this specific error and the directory is somewhere
-unusual.
+A run first failed with `permission requested: external_directory (/tmp/...); auto-rejecting`, and
+this file previously blamed the unusual scratchpad path. **That was only half right.** On
+2026-08-27 the same rejection reproduced from an ordinary `~/oc-test` directory, and the JSON event
+stream showed why:
+
+```json
+"tool": "read",
+"input": { "filePath": "/home/suyark/oc-test/fib.py" },
+"error": "The user rejected permission to use this specific tool call."
+```
+
+`/home/**suyark**/` — and on another run `/home/**suyany**/`. **The model was hallucinating the
+absolute path**, mangling the username differently each time. opencode then correctly saw a path
+outside the project, classified it `external_directory`, and auto-rejected. The sandbox was working
+exactly as designed; the model was feeding it garbage.
+
+The symptom is nasty because it does not look like a hallucination: `opencode run` with output
+redirected produces **no output, no error, and a non-zero exit after the timeout**. Only a TTY or
+`--format json` reveals the rejected path.
+
+**Fix: `~/.config/opencode/AGENTS.md`**, loaded automatically for every session, telling the model
+to use project-relative paths and to reuse path strings exactly as tools return them:
+
+> Use paths relative to the project root for every tool call. Never write an absolute path. If a
+> tool returns a path, reuse that exact string — do not retype it or complete it from memory.
+
+Verified: 3 consecutive runs afterwards, **zero hallucinated paths**, all three edits applied.
+`external_directory` is deliberately left at `ask` rather than `allow` in the config below — it is
+the guard that caught this, and allowing it would have let the model write to a path that does not
+exist instead of failing loudly.
 
 ### A CLI shortcut that didn't work as documented
 
@@ -141,13 +163,30 @@ under `$HOME`, not project-scoped like everything under `~/AI/`):
       }
     }
   },
-  "model": "ollama/gpt-oss-agent-32k"
+  "model": "ollama/gpt-oss-agent-32k",
+  "permission": {
+    "read": "allow", "glob": "allow", "grep": "allow",
+    "edit": "allow", "write": "allow", "bash": "allow", "webfetch": "allow",
+    "external_directory": "ask"
+  }
 }
 ```
 
 **The 4096-ctx model tags are kept registered deliberately** — as a live reminder and a way to
 reproduce the original failure if this needs debugging again. `ollama/gpt-oss-agent-32k` is the
 default; every other entry here is unreliable or unverified for actual agentic use.
+
+**On the `permission` block:** in-project tools are allowed so non-interactive runs don't stall
+waiting for approval that can never arrive. `external_directory` stays at `ask` on purpose — see
+the hallucinated-path section above. The valid keys were read out of the opencode binary
+(`bash`, `edit`, `read`, `write`, `glob`, `webfetch`, `external_directory`).
+
+### The other config file: `~/.config/opencode/AGENTS.md`
+
+Loaded into every session regardless of project. This is what stops the hallucinated-path failure,
+so **it is not optional** — if agentic runs start failing mysteriously, check it still exists.
+It also carries house style (match surrounding code, don't add docstrings/type hints that the file
+doesn't already use), which matters because gpt-oss otherwise writes very verbose Python.
 
 ### Recreating the custom model tags
 
@@ -167,20 +206,68 @@ Both reuse the base model's existing weight layers — no re-download, seconds t
 
 ## Usage
 
+### Interactive — the normal way to use it
+
 ```fish
 systemctl --user start ollama    # opencode needs a running Ollama server
 cd your-project
-opencode run "your task here"    # one-shot, non-interactive
-opencode                         # interactive TUI
+opencode                         # TUI, uses gpt-oss-agent-32k by default
 ```
 
-`opencode run` is what every verification in this file used — non-interactive, scriptable, and it
-prints the actual tool calls made (`Glob`, `Read`, `Edit`, ...) so you can see what it did rather
-than just trusting the final summary. Logs land at `~/.local/share/opencode/log/opencode.log` if a
-run needs debugging — this is where the `UnknownError` messages above were actually diagnosed.
+The TUI is the recommended mode. Everything works there: it has a terminal, so it can prompt for
+permissions, and output streams as it goes.
 
-**Run it from an ordinary directory under `$HOME` or a normal project path** — not a deeply nested
-temp/scratch path, per the permission-wall issue above.
+### Scripted / one-shot
+
+```fish
+opencode run "your task here"                     # needs a terminal
+opencode run --format json "..."  > events.json   # for redirecting/piping
+opencode run --print-logs --log-level DEBUG "..." # when something misbehaves
+```
+
+⚠️ **Use `--format json` whenever output is redirected or piped.** Plain `opencode run` with
+stdout going to a file or pipe was observed doing the work but never exiting — the edit landed
+correctly, then the process sat until killed. With a TTY it exits 0 normally. `--format json`
+emits one JSON event per line and terminates cleanly, and is also far easier to check
+programmatically (each tool call appears as `{"type":"tool", ...}` with its input and status).
+
+⚠️ **`$SHELL` must be a shell that starts cleanly non-interactively.** opencode's bash tool spawns
+`$SHELL`. With the login shell (fish) or bash it completes fine; a zsh configured with heavy
+interactive startup hung every bash-tool call with no error. If bash-tool tasks hang, test with
+`env SHELL=/bin/bash opencode run ...` to confirm before blaming the model.
+
+Logs land at `~/.local/share/opencode/log/opencode.log`.
+
+---
+
+## VS Code
+
+The extension is **`sst-dev.opencode`** (v0.0.13 installed). It is a thin wrapper — it opens the
+opencode TUI inside a VS Code terminal, so everything above (model, `AGENTS.md`, permissions)
+applies unchanged. There are no extension settings to configure.
+
+```fish
+code --install-extension sst-dev.opencode    # if not already present
+```
+
+| Shortcut (Linux) | Command | Does |
+|---|---|---|
+| `ctrl+escape` | `opencode.openTerminal` | open opencode in a terminal panel |
+| `ctrl+shift+escape` | `opencode.openNewTerminal` | open it in a new tab |
+| `ctrl+alt+K` | `opencode.addFilepathToTerminal` | insert the current file as an `@`-mention |
+
+The extension ships correct Linux keybindings (its `key` field shows `cmd+…`, but `linux` variants
+are defined), so nothing needs remapping. `ctrl+alt+K` is the one worth learning — it puts the file
+you're looking at into the prompt without typing the path, which also sidesteps the hallucinated-path
+problem entirely.
+
+If `ctrl+shift+escape` doesn't fire, it's being grabbed by the desktop — rebind it in
+**Keyboard Shortcuts** (`ctrl+K ctrl+S`).
+
+A useful companion binding already present in `~/.config/Code/User/keybindings.json` sends
+`shift+enter` as escape+CR in the terminal, which the TUI uses for multi-line input.
+
+**Run it from an ordinary project directory** — not a deeply nested temp/scratch path.
 
 **VRAM note:** same constraint as everything else on this GPU — opencode's model and ComfyUI/other
 Ollama models can't be resident simultaneously. `systemctl --user stop ollama` when done to release
@@ -188,7 +275,35 @@ the ~14.6 GiB.
 
 ---
 
-## Verified working, real transcript
+## Verified working — 2026-08-27, after the AGENTS.md fix
+
+```
+$ opencode run -m ollama/gpt-oss-agent-32k \
+    "Use the bash tool to run: python3 -c \"print(6*7)\" and tell me the output."
+> build · gpt-oss-agent-32k
+$ python3 -c "print(6*7)"
+42
+```
+
+Edit task, `--format json`, repeated runs against the same `fib.py` stub:
+
+| Check | Result |
+|---|---|
+| Hallucinated absolute paths | **0** across all runs after `AGENTS.md` |
+| Produces syntactically valid Python | 3/3 on a precise prompt |
+| `fib(10) == 55` | 3/3 on a precise prompt |
+| Same task, vaguer prompt | 2/4 — one run left the `TODO` in place, one produced bad indentation |
+
+**Prompt precision matters more than it should.** "Edit fib.py so fib(n) returns the nth Fibonacci
+number iteratively" was noticeably less reliable than "Replace the body of fib in fib.py with an
+iterative implementation. Remove the TODO." Both are clear to a human; only the second was reliable
+with a 20B model at Q4. Say exactly which construct to change and what to remove.
+
+**Always review the diff.** This is a local 20B model, not a frontier one — it succeeds often
+enough to be useful and fails often enough that unreviewed commits would be a mistake. Working in a
+git repo so `git diff` shows what it did is the practical safeguard.
+
+## Earlier transcript (2026-08-26)
 
 ```
 $ opencode run --model ollama/gpt-oss-agent-32k \

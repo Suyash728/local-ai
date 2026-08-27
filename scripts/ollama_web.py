@@ -2,26 +2,37 @@
 """
 Give a tool-calling-capable Ollama model live web access.
 
-Default model is gpt-oss:20b - verified categorically more reliable at this
-than qwen2.5-coder:14b-instruct-q4_K_M (see WEB-ACCESS.md for the measured
-comparison: clean structured tool_calls every time vs. qwen's frequent
-text-embedded JSON, no looping on repeated identical calls, 3/3 correct
-restraint on a trivial no-tool-needed question vs. qwen's 1/3). Pass --model
-to use qwen2.5-coder instead if needed. gemma3:12b has no tool-calling
-capability at all in Ollama - it silently ignores a `tools` field.
+Default model is gpt-oss-agent-32k (gpt-oss:20b at num_ctx 32768). The stock
+gpt-oss:20b tag runs at Ollama's default 4096 context, which search results plus
+a fetched page will overflow. gpt-oss is categorically more reliable at
+tool-calling here than qwen2.5-coder:14b (see WEB-ACCESS.md for the measured
+comparison). gemma3:12b has no tool-calling capability at all.
 
-Two tools are exposed: web_search (DuckDuckGo HTML, no API key) and fetch_url
-(reads a page and returns its text). Stdlib only - no new dependencies.
+SEARCH BACKENDS (2026-08-27). DuckDuckGo's HTML endpoint - what this script
+used until now - was put behind an anti-bot challenge and returns HTTP 202 with
+zero results for every query. lite.duckduckgo.com, searx.be, Startpage and
+Mojeek are all closed to plain scraping too. web_search now queries three
+keyless JSON APIs and merges them:
+
+  * Marginalia  - an independent general web index. The main engine.
+                  Rate limited, so calls are spaced and retried once.
+  * Wikipedia   - encyclopedic backstop, always answers.
+  * DuckDuckGo Instant Answer - one-line abstract for entity queries
+                  (good on "btrfs", empty on open-ended questions).
+
+Stdlib only - no new dependencies, no API keys, no extra services.
 
 Usage:
-    ./ollama_web.py "what's the latest CachyOS kernel version?"
-    ./ollama_web.py --model qwen2.5-coder:14b-instruct-q4_K_M "..."
+    ./ollama_web.py "what is a btrfs subvolume?"
+    ./ollama_web.py --model qwen2.5-coder-agent-32k "..."
+    ./ollama_web.py --search-only "btrfs subvolume"   # test search, no model
 """
 import argparse
-import html.parser
+import html
 import json
 import re
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -30,76 +41,90 @@ UA = "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/128.0"
 MAX_ROUNDS = 8          # tool-call round trips before giving up
 MAX_FETCH_CHARS = 6000  # truncate fetched pages so they don't blow the context
 
-
-class _DDGResultParser(html.parser.HTMLParser):
-    """Extracts (title, url, snippet) triples from DuckDuckGo's HTML results page."""
-    def __init__(self):
-        super().__init__()
-        self.results = []
-        self._in_title_a = False
-        self._in_snippet = False
-        self._cur_url = None
-        self._cur_title = []
-        self._cur_snippet = []
-
-    def handle_starttag(self, tag, attrs):
-        d = dict(attrs)
-        cls = d.get("class", "")
-        if tag == "a" and "result__a" in cls.split():
-            self._in_title_a = True
-            self._cur_url = self._unwrap(d.get("href", ""))
-            self._cur_title = []
-        elif "result__snippet" in cls.split():
-            self._in_snippet = True
-            self._cur_snippet = []
-
-    def handle_data(self, data):
-        if self._in_title_a:
-            self._cur_title.append(data)
-        elif self._in_snippet:
-            self._cur_snippet.append(data)
-
-    def handle_endtag(self, tag):
-        if tag == "a" and self._in_title_a:
-            self._in_title_a = False
-        if tag in ("a", "span") and self._in_snippet:
-            # snippet elements are usually a single <a> or <span>; end on either
-            if self._cur_snippet or not self._in_title_a:
-                self._in_snippet = False
-                if self._cur_url and self._cur_title:
-                    self.results.append({
-                        "title": "".join(self._cur_title).strip(),
-                        "url": self._cur_url,
-                        "snippet": "".join(self._cur_snippet).strip(),
-                    })
-                    self._cur_url = None
-                    self._cur_title = []
-
-    @staticmethod
-    def _unwrap(href):
-        # DDG wraps results as //duckduckgo.com/l/?uddg=<urlencoded-target>&rut=...
-        if "uddg=" in href:
-            q = urllib.parse.parse_qs(urllib.parse.urlparse(href).query)
-            if "uddg" in q:
-                return q["uddg"][0]
-        return href
+MARGINALIA_MIN_INTERVAL = 1.5   # seconds between Marginalia calls (it rate limits)
+_last_marginalia = 0.0
 
 
-def web_search(query: str, max_results: int = 5) -> str:
-    url = "https://html.duckduckgo.com/html/?" + urllib.parse.urlencode({"q": query})
+def _get_json(url, timeout=20):
     req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.load(r)
+
+
+def _clean(s, limit=180):
+    s = html.unescape(re.sub(r"<[^>]+>", "", s or "")).strip()
+    s = re.sub(r"\s+", " ", s)
+    return s[:limit]
+
+
+def _marginalia(query, n=5):
+    """General web index. Public API, no key, but rate limited - space the calls
+    and retry once, otherwise a burst returns read timeouts."""
+    global _last_marginalia
+    gap = time.time() - _last_marginalia
+    if gap < MARGINALIA_MIN_INTERVAL:
+        time.sleep(MARGINALIA_MIN_INTERVAL - gap)
+    url = "https://api.marginalia.nu/public/search/" + urllib.parse.quote(query)
+    for attempt in (1, 2):
+        try:
+            _last_marginalia = time.time()
+            d = _get_json(url, timeout=20)
+            out = []
+            for r in (d.get("results") or [])[:n]:
+                out.append({"title": _clean(r.get("title"), 100),
+                            "url": r.get("url", ""),
+                            "snippet": _clean(r.get("description"))})
+            return out
+        except Exception:
+            if attempt == 2:
+                return []
+            time.sleep(4)
+    return []
+
+
+def _wikipedia(query, n=3):
     try:
-        body = urllib.request.urlopen(req, timeout=15).read().decode("utf-8", "replace")
-    except Exception as e:
-        return f"search failed: {e}"
-    parser = _DDGResultParser()
-    parser.feed(body)
-    results = parser.results[:max_results]
-    if not results:
-        return "no results found"
+        d = _get_json("https://en.wikipedia.org/w/api.php?" + urllib.parse.urlencode(
+            {"action": "query", "list": "search", "srsearch": query,
+             "format": "json", "srlimit": n}))
+        return [{"title": h["title"],
+                 "url": "https://en.wikipedia.org/wiki/" + urllib.parse.quote(h["title"].replace(" ", "_")),
+                 "snippet": _clean(h.get("snippet"))}
+                for h in d["query"]["search"][:n]]
+    except Exception:
+        return []
+
+
+def _ddg_abstract(query):
+    try:
+        d = _get_json("https://api.duckduckgo.com/?" + urllib.parse.urlencode(
+            {"q": query, "format": "json", "no_html": 1}))
+        txt = (d.get("AbstractText") or "").strip()
+        return f"{txt} [{d.get('AbstractURL','')}]" if txt else ""
+    except Exception:
+        return ""
+
+
+def web_search(query: str, max_results: int = 6) -> str:
+    abstract = _ddg_abstract(query)
+    hits, seen_urls = [], set()
+    for src, rows in (("web", _marginalia(query)), ("wikipedia", _wikipedia(query))):
+        for r in rows:
+            u = r["url"].rstrip("/")
+            if not u or u in seen_urls:
+                continue
+            seen_urls.add(u)
+            r["source"] = src
+            hits.append(r)
+    hits = hits[:max_results]
+    if not hits and not abstract:
+        return ("no results found - all search backends returned nothing. "
+                "Try a shorter, more general query, or fetch_url a known page.")
     lines = []
-    for i, r in enumerate(results, 1):
-        lines.append(f"{i}. {r['title']}\n   {r['url']}\n   {r['snippet']}")
+    if abstract:
+        lines.append(f"Summary: {abstract}\n")
+    for i, r in enumerate(hits, 1):
+        lines.append(f"{i}. [{r['source']}] {r['title']}\n   {r['url']}\n   {r['snippet']}")
     return "\n".join(lines)
 
 
@@ -112,7 +137,7 @@ _NL_RE = re.compile(r"\n{3,}")
 def fetch_url(url: str) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     try:
-        body = urllib.request.urlopen(req, timeout=15).read().decode("utf-8", "replace")
+        body = urllib.request.urlopen(req, timeout=20).read().decode("utf-8", "replace")
     except Exception as e:
         return f"fetch failed: {e}"
     text = _TAG_RE.sub(" ", body)
@@ -133,9 +158,7 @@ TOOLS = [
             "description": "Search the web and return titles, URLs and snippets for the top results.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "the search query"},
-                },
+                "properties": {"query": {"type": "string", "description": "the search query"}},
                 "required": ["query"],
             },
         },
@@ -147,9 +170,7 @@ TOOLS = [
             "description": "Fetch a specific URL and return its visible text content.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "url": {"type": "string", "description": "the URL to fetch"},
-                },
+                "properties": {"url": {"type": "string", "description": "the URL to fetch"}},
                 "required": ["url"],
             },
         },
@@ -165,7 +186,7 @@ def chat(model, messages, verbose):
         data=json.dumps({"model": model, "messages": messages, "tools": TOOLS, "stream": False}).encode(),
         headers={"Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=120) as r:
+    with urllib.request.urlopen(req, timeout=180) as r:
         return json.load(r)
 
 
@@ -202,13 +223,16 @@ SYSTEM_PROMPT = (
     "You have web_search and fetch_url tools. Use them only for facts you cannot "
     "already answer correctly - current events, prices, versions, specs, or anything "
     "that might have changed since training. For arithmetic, general knowledge, or "
-    "anything you already know confidently, answer directly without calling a tool."
+    "anything you already know confidently, answer directly without calling a tool. "
+    "If a search returns nothing useful twice, stop searching and answer with what "
+    "you have, saying plainly what you could not confirm."
 )
 
 
 def run(model, prompt, verbose=True):
     messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}]
     seen = set()  # (name, sorted-args-json) already executed this conversation
+    empty_searches = 0
     for _ in range(MAX_ROUNDS):
         resp = chat(model, messages, verbose)
         msg = resp["message"]
@@ -239,6 +263,14 @@ def run(model, prompt, verbose=True):
                 seen.add(key)
                 fn = DISPATCH.get(name)
                 result = fn(args) if fn else f"unknown tool: {name}"
+                # Stop a model burning every round on searches that return nothing
+                # (seen when DDG broke: 5 consecutive empty searches, then gave up).
+                if name == "web_search" and result.startswith("no results found"):
+                    empty_searches += 1
+                    if empty_searches >= 2:
+                        result += ("\n\nSearch is not returning results for this. Answer "
+                                   "now from what you already know and state clearly "
+                                   "what you could not verify.")
                 if verbose:
                     preview = result[:200].replace("\n", " ")
                     print(f"  [tool result] {preview}...", file=sys.stderr)
@@ -249,7 +281,12 @@ def run(model, prompt, verbose=True):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("prompt")
-    ap.add_argument("--model", default="gpt-oss:20b")
+    ap.add_argument("--model", default="gpt-oss-agent-32k")
     ap.add_argument("-q", "--quiet", action="store_true", help="suppress tool-call trace on stderr")
+    ap.add_argument("--search-only", action="store_true",
+                    help="run the search backends directly and print results; no model involved")
     args = ap.parse_args()
-    print(run(args.model, args.prompt, verbose=not args.quiet))
+    if args.search_only:
+        print(web_search(args.prompt))
+    else:
+        print(run(args.model, args.prompt, verbose=not args.quiet))

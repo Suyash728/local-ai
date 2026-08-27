@@ -4,10 +4,16 @@ Companion to `OLLAMA-ACCESS.md` (how to talk to the models) and `README.md` (wha
 This covers `scripts/ollama_web.py` — a script that lets a tool-calling-capable model search the
 web and fetch pages before answering.
 
+**Update 2026-08-27 — the search backend was replaced.** DuckDuckGo put its HTML endpoint behind
+an anti-bot challenge, and the script broke completely: every query returned `no results found`.
+Search now runs on three keyless JSON APIs instead. See "Search backends" below. The default model
+also changed to `gpt-oss-agent-32k` (32k context) — search results plus a fetched page overflow
+the stock 4096-token context.
+
 **Update 2026-08-26:** the default model changed from `qwen2.5-coder:14b-instruct-q4_K_M` to
-`gpt-oss:20b`, which is verified categorically more reliable at tool-calling — see "Which model"
+gpt-oss, which is verified categorically more reliable at tool-calling — see "Which model"
 below. The Known limitations section further down was written against qwen2.5-coder's behavior;
-it still applies if you pass `--model qwen2.5-coder:14b-instruct-q4_K_M`, but gpt-oss did not
+it still applies if you pass `--model qwen2.5-coder-agent-32k`, but gpt-oss did not
 reproduce any of those failures in the same tests.
 
 **Read this before trusting an answer from it.** The mechanism works and is verified below with
@@ -57,20 +63,49 @@ getting that tag-wrapping right every time at Q4 quantization, and it doesn't al
 specifically need its code-domain knowledge for a query, but tested less reliable as a *tool-use*
 loop.
 
-## No API key needed
+## Search backends — no API key, no extra service
 
-Search runs through `html.duckduckgo.com/html/` — DuckDuckGo's server-rendered results page, no
-account or key required. This is intentionally the free option, at the cost of being somewhat more
-fragile than a paid search API (see Known limitations).
+**What broke.** Until 2026-08-27 search scraped `html.duckduckgo.com/html/`. DDG now answers that
+endpoint with **HTTP 202 and an anti-bot challenge page** (`anomaly` ×67, `challenge` ×13, zero
+result markers), so every query returned nothing. Checked at the same time and also closed to
+plain scraping: `lite.duckduckgo.com` (same challenge), `searx.be` (captcha), Startpage (Anubis
+proof-of-work), Mojeek (requires JavaScript).
+
+Keyless *general* web search by scraping is effectively over. `web_search` now merges three JSON
+APIs that do still work:
+
+| Backend | Role | Notes |
+|---|---|---|
+| **Marginalia** | the general web index — main engine | independent crawler, no key. Rate limited, so calls are spaced 1.5 s apart and retried once |
+| **Wikipedia** | encyclopedic backstop | always answers, never rate limited |
+| **DuckDuckGo Instant Answer** | one-line abstract | official API. Good on entities (`btrfs`), returns empty for open-ended questions |
+
+Results are merged, deduplicated by URL, and tagged with their source (`[web]`, `[wikipedia]`) so
+you can see where each came from.
+
+**Alternatives considered and rejected.** Self-hosting SearXNG would give real meta-search, but
+neither podman nor docker is installed and there is no `searxng` package in the repos — it would
+have meant a container runtime plus a new service for a script that is meant to be thin. A keyed
+API (Brave, Tavily) works but requires an account. The current setup needs neither, which matches
+how everything else here is built.
+
+If Marginalia ever goes the way of DDG, adding a keyed backend is a small change — `_marginalia()`
+is one self-contained function with the same signature as `_wikipedia()`.
 
 ---
 
 ## Usage
 
 ```fish
-./scripts/ollama_web.py "what's the latest CachyOS kernel version?"
-./scripts/ollama_web.py --model qwen2.5-coder:14b-instruct-q4_K_M "..."
-./scripts/ollama_web.py -q "..."          # suppress the tool-call trace, print only the answer
+systemctl --user start ollama                    # required first
+
+./scripts/ollama_web.py "what is a btrfs subvolume?"
+./scripts/ollama_web.py -q "..."                 # answer only, no tool-call trace
+./scripts/ollama_web.py --model qwen2.5-coder-agent-32k "..."
+
+# check the search backends alone, no model, no ollama needed - use this first
+# if answers look wrong, to tell a search problem from a model problem
+./scripts/ollama_web.py --search-only "btrfs subvolume snapshot"
 ```
 
 Requires `ollama` running (`systemctl --user start ollama`). Stdlib only — no packages to install,
@@ -87,9 +122,9 @@ the final answer.
 
 Two tools are exposed to the model:
 
-- **`web_search(query)`** — parses DuckDuckGo's HTML results page with Python's stdlib
-  `html.parser` (not regex, so it survives markup changes better) into title/URL/snippet triples,
-  unwrapping DDG's redirect-wrapped URLs back to the real target.
+- **`web_search(query)`** — queries Marginalia, Wikipedia and DDG's Instant Answer API, merges the
+  hits, drops duplicate URLs and returns up to 6 tagged title/URL/snippet triples, with a
+  `Summary:` line first when an abstract exists.
 - **`fetch_url(url)`** — fetches a page, strips scripts/styles/tags, unescapes entities, collapses
   whitespace, and truncates at 6000 characters so a single page can't blow the model's context.
 
@@ -123,11 +158,43 @@ call in the same conversation, the script refuses to run it again and instead re
 telling the model it already has this result and should answer now. This reliably broke the loop
 in testing — the model responded correctly on the next turn every time this was observed.
 
+### A third guard, added when DDG broke: escaping dead searches
+
+When DuckDuckGo started returning nothing, the failure mode was not an error — it was the model
+burning all 8 rounds on searches that each returned `no results found`, then giving up with no
+answer at all. The script now counts empty searches: after the second one it appends an
+instruction telling the model to stop searching and answer from what it knows, stating plainly
+what it could not verify. A degraded answer beats eight wasted rounds and silence.
+
 ---
 
 ## Verified working, real transcripts
 
-### gpt-oss:20b (current default)
+### 2026-08-27, after the backend swap
+
+```
+$ ./scripts/ollama_web.py "Find the ComfyUI GitHub repository and tell me what its README says it is."
+  [tool call] web_search({'query': 'ComfyUI GitHub repository README says it is'})
+  [tool call] web_search({'query': 'ComfyUI'})
+  [tool call] web_search({'query': 'ComfyUI GitHub'})
+  [tool call] fetch_url({'url': 'https://github.com/comfyanonymous/ComfyUI'})
+  [tool call] fetch_url({'url': 'https://raw.githubusercontent.com/.../README.md'})
+**GitHub repository** `https://github.com/comfyanonymous/ComfyUI`
+(refined its query three times, found the repo, then fetched the raw README rather than
+ trusting the rendered page - the whole loop worked as designed)
+```
+
+`--search-only` on three queries, no model involved — Marginalia returned relevant hits for all
+three, including the niche one:
+
+```
+$ ./scripts/ollama_web.py --search-only "what is NVFP4 quantization"
+1. [web] LLM Inference on RTX PRO 6000 Blackwell · eordano's garden
+2. [web] In search of wasted bits: how much information do LLM weights carry? | Doubleword
+3. [web] NVFP4 GEMV – simons blog
+```
+
+### gpt-oss:20b (earlier transcripts, DDG-era backend)
 
 ```
 $ ./scripts/ollama_web.py "What is today's exact date? Search the web to confirm it."
