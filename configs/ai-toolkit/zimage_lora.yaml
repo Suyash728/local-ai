@@ -1,0 +1,92 @@
+---
+# Z-Image Turbo LoRA — tuned for RTX 5060 Ti 16G (sm_120), 31 GiB RAM, zram-only swap.
+#
+# Run:  cd ~/AI/ai-toolkit; ./venv/bin/python run.py ~/AI/configs/ai-toolkit/zimage_lora.yaml
+#
+# Before the first run, set `datasets[0].folder_path` and (optionally) `trigger_word`.
+# Dataset format: a flat folder of .jpg/.png with a matching .txt caption per image
+# (image7.jpg + image7.txt). 10-20 images is plenty for a subject or style.
+#
+# NOTE: the NVFP4 checkpoints in ~/AI/models/comfyui are INFERENCE-only. Training pulls
+# BF16 weights from HuggingFace into HF_HOME (~/AI/models/hf) on first run. See
+# LORA-TRAINING.md for the download size before you start.
+
+job: extension
+config:
+  name: "zimage_lora_v1"          # output folder + filename stem
+  process:
+    - type: 'sd_trainer'
+      training_folder: "/home/suyash/AI/ai-toolkit/output"
+      device: cuda:0
+      # performance_log_every: 100
+      # trigger_word: "p3r5on"    # uncomment for a subject LoRA; use [trigger] in captions
+
+      network:
+        type: "lora"
+        linear: 16                # rank. 8-16 for a subject, 16-32 for a style
+        linear_alpha: 16          # keep == linear unless you know why not
+
+      save:
+        dtype: float16
+        save_every: 250
+        max_step_saves_to_keep: 4
+        push_to_hub: false
+
+      datasets:
+        - folder_path: "/home/suyash/AI/datasets/CHANGE_ME"
+          caption_ext: "txt"
+          caption_dropout_rate: 0.05
+          shuffle_tokens: false
+          cache_latents_to_disk: true
+          # 1024 fits on 16 GiB with the offloading below. Drop to [640, 768] if you OOM.
+          resolution: [768, 1024]
+
+      train:
+        batch_size: 1             # 16 GiB will not hold more at 1024
+        steps: 2000               # 1500-3000 is the useful range for 10-20 images
+        gradient_accumulation_steps: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true    # required at this VRAM, costs ~20% speed
+        noise_scheduler: "flowmatch"
+        optimizer: "adamw8bit"
+        lr: 1e-4
+        dtype: bf16
+        ema_config:
+          use_ema: true
+          ema_decay: 0.99
+
+      model:
+        name_or_path: "Tongyi-MAI/Z-Image-Turbo"
+        arch: "zimage"
+        # --- 16 GiB memory profile -------------------------------------------
+        quantize: true            # 8-bit transformer
+        quantize_te: true         # 8-bit text encoder (Qwen3-4B) — matters here
+        layer_offloading: true    # stream layers from RAM; note qtype becomes float8
+        layer_offloading_transformer_percent: 0.5   # raise toward 1.0 if OOM, costs speed
+        layer_offloading_text_encoder_percent: 1.0
+        low_vram: true            # this GPU also drives the desktop (~0.9 GiB)
+        # ---------------------------------------------------------------------
+
+      sample:
+        sampler: "flowmatch"
+        sample_every: 250
+        sample_start_step: 0
+        width: 832
+        height: 1216              # matches the resolution used everywhere else here
+        # Z-Image Turbo is distilled: 8 steps, guidance 1.0. Do NOT raise these.
+        guidance_scale: 1.0
+        sample_steps: 8
+        neg: ""
+        seed: 42
+        walk_seed: true
+        prompts:
+          # Prompt style follows PROMPTING.md — describe a real photographic
+          # situation rather than asking for realism.
+          - "[trigger] direct on-camera flash, harsh falloff, standing in a cluttered kitchen, looking away from the lens, cheap digital compact"
+          - "[trigger] flat grey overcast light, city street out of focus behind, wind blowing hair, cropped slightly off-centre"
+          - "[trigger] mid-laugh at a crowded table, warm indoor bulbs, phone camera oversharpening"
+
+meta:
+  name: "[name]"
+  version: '1.0'

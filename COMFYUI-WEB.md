@@ -9,6 +9,9 @@ generation (the way every comparison in `MODEL-COMPARISON.md` and `PROMPTING.md`
 produced), see "Scripting instead of clicking" at the bottom — the web UI queues one image at a
 time by hand, which doesn't scale past a handful of renders.
 
+This file covers **text-to-image**. For starting from an existing image — img2img and
+identity-preserving reference edits, with saved workflows for every model — see `IMG2IMG.md`.
+
 ---
 
 ## Starting it

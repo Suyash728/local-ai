@@ -25,6 +25,9 @@ FLUX.1-dev-NVFP4/
 
 # --- Application checkouts (upstream repos, not ours) ---
 ComfyUI/
+# anchored: an unanchored `ai-toolkit/` also matches configs/ai-toolkit/,
+# which holds training configs we DO want tracked.
+/ai-toolkit/
 
 # --- Caches & generated output ---
 .cache/

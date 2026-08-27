@@ -1,0 +1,87 @@
+---
+# FLUX.2 Klein LoRA — tuned for RTX 5060 Ti 16G (sm_120), 31 GiB RAM, zram-only swap.
+#
+# Run:  cd ~/AI/ai-toolkit; ./venv/bin/python run.py ~/AI/configs/ai-toolkit/flux2_klein_lora.yaml
+#
+# Defaults to Klein **4B**, which is the variant that actually fits this machine
+# comfortably (and is Apache 2.0, unlike 9B). To try 9B instead, change the two
+# marked lines below — but read the VRAM/disk note in LORA-TRAINING.md first.
+#
+# FLUX.2 [dev] (32B) is NOT trainable on 16 GiB and has no config here on purpose.
+
+job: extension
+config:
+  name: "flux2_klein4b_lora_v1"
+  process:
+    - type: 'sd_trainer'
+      training_folder: "/home/suyash/AI/ai-toolkit/output"
+      device: cuda:0
+      # trigger_word: "p3r5on"
+
+      network:
+        type: "lora"
+        linear: 16
+        linear_alpha: 16
+
+      save:
+        dtype: float16
+        save_every: 250
+        max_step_saves_to_keep: 4
+        push_to_hub: false
+
+      datasets:
+        - folder_path: "/home/suyash/AI/datasets/CHANGE_ME"
+          caption_ext: "txt"
+          caption_dropout_rate: 0.05
+          shuffle_tokens: false
+          cache_latents_to_disk: true
+          resolution: [768, 1024]
+
+      train:
+        batch_size: 1
+        steps: 2000
+        gradient_accumulation_steps: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: "flowmatch"
+        optimizer: "adamw8bit"
+        lr: 1e-4
+        dtype: bf16
+        ema_config:
+          use_ema: true
+          ema_decay: 0.99
+
+      model:
+        # --- switch to 9B by changing BOTH of these ---------------------------
+        name_or_path: "black-forest-labs/FLUX.2-klein-base-4B"   # ...klein-base-9B
+        arch: "flux2_klein_4b"                                   # flux2_klein_9b
+        # ---------------------------------------------------------------------
+        # The text encoder comes from a separate repo (Qwen/Qwen3-4B for 4B,
+        # Qwen/Qwen3-8B for 9B) and is fetched automatically.
+        quantize: true
+        quantize_te: true
+        layer_offloading: true
+        layer_offloading_transformer_percent: 0.5   # 9B: raise to 1.0
+        layer_offloading_text_encoder_percent: 1.0
+        low_vram: true
+
+      sample:
+        sampler: "flowmatch"
+        sample_every: 250
+        sample_start_step: 0
+        width: 832
+        height: 1216
+        guidance_scale: 4.0       # klein base wants real guidance, unlike Z-Image Turbo
+        sample_steps: 28
+        neg: ""
+        seed: 42
+        walk_seed: true
+        prompts:
+          - "[trigger] direct on-camera flash, harsh falloff, cluttered kitchen counter, looking away from the lens"
+          - "[trigger] cold dawn light at an outdoor market, visible breath, wet surfaces, cheap digital compact"
+          - "[trigger] flat grey overcast light, city street out of focus behind, cropped slightly off-centre"
+
+meta:
+  name: "[name]"
+  version: '1.0'

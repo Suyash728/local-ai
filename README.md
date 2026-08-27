@@ -5,6 +5,8 @@ What is installed, where things live, and how to start them.
 **Getting photoreal people out of FLUX:** `PROMPTING.md`.
 **Which image model to use:** `MODEL-COMPARISON.md`.
 **Using ComfyUI's browser UI:** `COMFYUI-WEB.md`.
+**Editing an existing image:** `IMG2IMG.md`.
+**Training your own LoRAs:** `LORA-TRAINING.md`.
 **Talking to the Ollama models:** `OLLAMA-ACCESS.md`.
 **Giving a model live web access:** `WEB-ACCESS.md`.
 **Agentic coding with local models:** `OPENCODE.md`.
@@ -15,7 +17,7 @@ What is installed, where things live, and how to start them.
 | Track A — LLMs | ✅ **DONE & VERIFIED** (2026-08-23) |
 | Track B — ComfyUI | ✅ **DONE & VERIFIED** (2026-08-24) |
 | Track C — Video | ⛔ deferred by decision (needs 64 GiB RAM) |
-| Free disk | ~77 GiB |
+| Free disk | ~44 GiB |
 
 ---
 
@@ -198,6 +200,9 @@ The old cu129 venv has been deleted; this is the only one.
 
 `~/AI/ComfyUI/` — ComfyUI 0.33.0 (`b78cec8`), custom node `ComfyUI-GGUF` (city96, 6 nodes),
 `comfy-kitchen 0.2.31` + `comfy-aimdo 0.4.13`.
+
+`~/AI/ai-toolkit/` + `ai-toolkit/venv/` (5.9 GiB) — LoRA trainer, deliberately a **separate** venv
+from ComfyUI's (conflicting `transformers`/`peft`/`huggingface_hub` pins). See `LORA-TRAINING.md`.
 
 ### Models (14.2 GiB, in `~/AI/models/comfyui/`)
 
