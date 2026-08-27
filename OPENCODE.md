@@ -4,9 +4,93 @@ Companion to `OLLAMA-ACCESS.md` (talking to the models) and `WEB-ACCESS.md` (giv
 access). This is the third leg: an actual coding agent — reads files, edits them, runs shell
 commands, iterates — driven entirely by the local `gpt-oss:20b` model.
 
-**Read "The real story" before trusting a run.** The setup here required finding and fixing a
-genuine reliability bug, not just wiring an endpoint together. Skipping straight to Usage risks
-using the broken configuration.
+Everything is already installed and configured. **Start here; the rest of this file is background
+on how it got that way, and is only needed when something misbehaves.**
+
+---
+
+## Quick start
+
+### 1. Start the model server (always, first)
+
+```fish
+systemctl --user start ollama
+```
+
+Nothing works without this — opencode talks to Ollama on `127.0.0.1:11434`. It is not enabled at
+boot, so this is needed after every reboot. When you're done: `systemctl --user stop ollama` to
+free the ~14 GiB of VRAM.
+
+### 2a. Terminal
+
+```fish
+cd ~/my-project
+opencode
+```
+
+That's it. It opens a TUI already set to `gpt-oss-agent-32k` (local) — the status line reads
+`Build · gpt-oss 20B (local, 32k ctx…) Ollama (local)`. Type a task and press Enter. The footer
+shows the keys: `tab` switches agents, `ctrl+p` opens the command palette.
+
+### 2b. VS Code
+
+Open a project, then press **`ctrl+escape`**. The opencode TUI opens in a terminal panel — same
+tool, same config. Useful extras:
+
+| Key | Does |
+|---|---|
+| `ctrl+escape` | open opencode |
+| `ctrl+shift+escape` | open it in a new tab |
+| **`ctrl+alt+K`** | insert the file you're viewing as an `@`-mention |
+
+`ctrl+alt+K` is worth the muscle memory: it puts the exact file path into your prompt so the model
+never has to guess it (see the hallucinated-path section below for why that matters).
+
+### 3. Ask for something specific
+
+A real run, start to finish. Given `config.py`:
+
+```python
+def parse_config(raw):
+    # TODO: validate port
+    return raw
+```
+
+asked: *"Implement port validation in parse_config in config.py and remove the TODO."* →
+
+```diff
+ def parse_config(raw):
+-    # TODO: validate port
++    port = raw.get("port")
++    if not isinstance(port, int) or not (1 <= port <= 65535):
++        raise ValueError(f"Invalid port: {port}")
+     return raw
+```
+
+Verified working: `parse_config({"port": 8080})` returns, `parse_config({"port": "abc"})` raises
+`ValueError: Invalid port: abc`. It even chose a sensible range bound unprompted.
+
+**Name the function and the file, and say what to remove.** This is a 20B model at 4-bit — "make
+parse_config better" gets vague results. Measured on the same task: 3/3 correct with a precise
+prompt, 2/4 with a vague one.
+
+**Work in a git repo and read `git diff` before committing.** It succeeds often enough to be
+genuinely useful and fails often enough that unreviewed commits would be a mistake.
+
+### Scripting it
+
+```fish
+opencode run --format json "your task" > events.json
+```
+
+Use `--format json` whenever output is redirected or piped — see the warning under Usage below.
+
+### If something looks wrong
+
+```fish
+opencode run --print-logs --log-level DEBUG "your task"   # see every step
+systemctl --user status ollama                            # is the server up?
+```
 
 ---
 
