@@ -144,9 +144,36 @@ Trained LoRAs go in `~/AI/models/comfyui/loras/` — already wired into ComfyUI 
 `extra_model_paths.yaml`, so the file appears in the `LoraLoaderModelOnly` dropdown with no config
 change. Add that node between `UNETLoader` and `KSampler` in any workflow.
 
-LoRAs apply to the NVFP4 inference checkpoints fine: ComfyUI dequantizes the quantized tensor,
-applies the LoRA delta and re-quantizes (`ComfyUI/comfy/model_patcher.py:917`). That is generic
-core infrastructure, not per-model support.
+### Verified: LoRAs really do apply to the NVFP4 checkpoints
+
+This gates the whole exercise — if a LoRA could not be applied to the 4-bit inference weights,
+training one would be pointless. So it was tested rather than inferred from the source.
+
+Two synthetic rank-8 LoRAs were built against the 60 attention linears of
+`z_image_turbo_nvfp4.safetensors` — one with `lora_B` all zeros (delta exactly 0) and one with
+random `lora_B` — then run through `LoraLoaderModelOnly` at strength 1.0, same seed and prompt:
+
+| Check | Result |
+|---|---|
+| Unmatched keys (`lora key not loaded`) | **0** |
+| Shape errors | **0** |
+| Patches attached (log) | **60**, vs `0 patches attached` without a LoRA |
+| Zero-LoRA vs non-zero-LoRA output | **differs** (mean \|Δ\| 26.8/255) |
+| Baseline reproducibility | bit-identical across two runs (max \|Δ\| = 0) |
+
+The delta reaches the quantized weights and changes the image. **LoRA on NVFP4 works.**
+
+Two things that cost time and are worth knowing:
+
+- **NVFP4 shapes in the file are packed two-per-byte.** A linear whose header says
+  `[3840, 1920]` is logically `[3840, 3840]`. Building a LoRA against the header shape produces
+  `shape '[3840, 3840]' is invalid for input of size 7372800` on every layer — and ComfyUI logs
+  that as an error per layer while still reporting the job as `success`. Check the log, not the
+  status.
+- **A zero-delta LoRA is not a no-op on a quantized checkpoint.** It still changed the output
+  against a verified-deterministic baseline, because the patch path dequantizes and re-quantizes
+  each patched weight. Practical effect: adding a LoRA perturbs the base render slightly
+  regardless of its contents, so "with LoRA at low strength" is not a clean A/B against "no LoRA".
 
 **Untested caveat:** a LoRA trained against Z-Image *base* (28-50 steps, real CFG) is not
 guaranteed to behave identically on *Turbo* (8 steps, cfg 1.0). Community reports say they
