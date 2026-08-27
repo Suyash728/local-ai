@@ -258,19 +258,55 @@ set -Ux OPENCODE_DISABLE_MODELS_FETCH 1
 set -Ux OPENCODE_DISABLE_AUTOUPDATE 1
 ```
 
-Both are set as fish **universal** variables, so they persist across reboots and apply to every
-shell. Verified after setting: **zero external connections** during a full run, while
-`opencode models ollama` still lists all four local models and tasks complete normally.
+**Set it in three places — the fish universal variable alone is not enough.** Fish universals
+exist only inside fish, so anything launched from the desktop (VS Code from the app menu, a
+non-fish terminal) never sees them, and opencode goes on fetching.
 
-They are also duplicated in VS Code's `settings.json` under `terminal.integrated.env.linux`, so the
-extension's terminal gets them whatever shell it launches:
+1. **`~/.config/environment.d/opencode.conf`** — the systemd *user* environment, which applies to
+   the whole graphical session including desktop-launched apps. This is the one that actually
+   closes the hole. **Takes effect at next login**; to apply it to the running session without
+   logging out, `systemctl --user import-environment OPENCODE_DISABLE_MODELS_FETCH OPENCODE_DISABLE_AUTOUPDATE`.
 
-```json
-"terminal.integrated.env.linux": {
-  "OPENCODE_DISABLE_MODELS_FETCH": "1",
-  "OPENCODE_DISABLE_AUTOUPDATE": "1"
-}
+   ```
+   OPENCODE_DISABLE_MODELS_FETCH=1
+   OPENCODE_DISABLE_AUTOUPDATE=1
+   ```
+
+2. **fish universal variables** (`set -Ux …`) — covers interactive shells immediately, including
+   sessions already open.
+
+3. **VS Code `settings.json`** under `terminal.integrated.env.linux` — belt and braces for the
+   extension's terminal whatever shell it launches:
+
+   ```json
+   "terminal.integrated.env.linux": {
+     "OPENCODE_DISABLE_MODELS_FETCH": "1",
+     "OPENCODE_DISABLE_AUTOUPDATE": "1"
+   }
+   ```
+
+### Verifying it, properly
+
+⚠️ **A warm cache will fool you.** The catalog is cached at `~/.cache/opencode/models.json`
+(~4.3 MB) and only re-fetched when missing or stale, so "no connections observed" proves nothing
+if that file already exists. Delete it first, and run a positive control:
+
+```fish
+rm -f ~/.cache/opencode/models.json
+# control - genuinely unset, not set-to-empty (empty still counts as "set")
+env -u OPENCODE_DISABLE_MODELS_FETCH opencode run -m ollama/gpt-oss-agent-32k "say hi"
 ```
+
+Measured this way:
+
+| Condition (cache deleted first) | Connection | `models.json` after |
+|---|---|---|
+| flag **unset** (control) | `104.20.32.17:443` | re-downloaded, 4.3 MB |
+| flag **set** | none | stays absent |
+
+With the flag set and no catalog on disk at all: the TUI and `opencode run` both stay offline,
+`opencode models ollama` still lists all four local models, and a real edit task completes
+(`fib(10) = 55`, TODO removed).
 
 **Does disabling the catalog hurt quality?** No. A first sample suggested it might (0/3 vs 3/3),
 but that was run-to-run variance — a second sample gave 2/3 with it enabled, matching 2/3 without.
