@@ -346,6 +346,84 @@ Logs land at `~/.local/share/opencode/log/opencode.log`.
 
 ---
 
+## Context and memory — measured
+
+Three separate layers, often confused with each other. All figures below were measured on this
+machine on 2026-08-28.
+
+### Layer 1 — Ollama's KV cache (verified working)
+
+Set in the ollama user unit:
+
+```
+OLLAMA_FLASH_ATTENTION=1
+OLLAMA_KV_CACHE_TYPE=q8_0     # 8-bit quantised KV cache
+```
+
+**Prefix reuse across turns is real, and large.** Ollama keeps up to 32 rolling context
+checkpoints per slot (`created context checkpoint 1 of 32 …`). Continuing a session with
+`opencode run --continue`:
+
+| Turn | Tokens actually prefilled |
+|---|---:|
+| 1 | **6 774** (full prompt) |
+| 2 | **19** |
+
+Turn 2 re-processed 19 tokens instead of ~6.8k — the shared prefix came from cache. Prefill runs
+at roughly **4 850 tok/s**, generation at **~90 tok/s**.
+
+Note `opencode`'s own token report always shows `"cache": {"write": 0, "read": 0}`. That is the
+OpenAI-compatible provider having no field to report Ollama's caching through — **not** an
+indication that caching is off. Ollama's log is the authority.
+
+### Layer 2 — how big the window can be
+
+`gpt-oss:20b` supports **131 072** natively; our `gpt-oss-agent-32k` tag pins `num_ctx 32768`.
+Raising it is cheap until it isn't:
+
+| `num_ctx` | Placement | VRAM (total, incl. desktop) | Generation |
+|---:|---|---:|---:|
+| 32 768 (current) | 100% GPU | 13 615 MiB | 91.7 tok/s |
+| 65 536 | 100% GPU | 14 085 MiB | 87.6 tok/s |
+| 131 072 | **11% CPU / 89% GPU** | 14 821 MiB | 80.1 tok/s |
+
+**64k is the practical ceiling on this card** — doubling the window costs only ~470 MiB thanks to
+the q8_0 KV cache, and stays fully on the GPU. 128k spills 11% of the model to CPU and gives up
+~13% of generation speed. To change it, recreate the tag (seconds, reuses existing weight layers):
+
+```fish
+printf 'FROM gpt-oss:20b\nPARAMETER num_ctx 65536\n' > /tmp/Modelfile
+ollama create gpt-oss-agent-64k -f /tmp/Modelfile
+```
+
+### Layer 3 — what opencode spends it on
+
+**opencode's own scaffolding costs ~6.3–6.8k tokens before you type anything** — its system
+prompt plus the full schemas for `bash`, `edit`, `glob`, `grep`, `read`, `write`, `todowrite`,
+`task`, `skill`, `webfetch`. Measured on a bare `"say hi"`:
+
+```json
+{"total": 6833, "input": 6774, "output": 59, "reasoning": 0}
+```
+
+So of a 32 768-token window, roughly **21% is gone at session start**, leaving ~26k for the
+conversation, file contents and tool output. A couple of large file reads consume it quickly.
+
+When it fills, opencode **auto-compacts** — it summarises the conversation so far and continues
+(`compactAfterOverflow`; disable with `OPENCODE_DISABLE_AUTOCOMPACT=1`). Compaction is lossy: the
+model keeps a summary, not the transcript. For long sessions this is the practical limit on
+"memory", not the token count.
+
+**Practical implications**
+
+- Start a fresh session per task rather than one long-running one. Compaction loses detail, and a
+  fresh session costs only the ~6.5k baseline.
+- `AGENTS.md` is prepended to every session, so keep it short — it is charged against the window
+  each time.
+- If you routinely hit compaction, move to a 64k tag before anything else. It is nearly free.
+
+---
+
 ## Keeping it local — it phones home by default
 
 **opencode contacts `api.opencode.ai` on every run, even with a purely local model.** Observed
