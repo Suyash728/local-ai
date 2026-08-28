@@ -28,8 +28,8 @@ cd ~/my-project
 opencode
 ```
 
-That's it. It opens a TUI already set to `gpt-oss-agent-32k` (local) — the status line reads
-`Build · gpt-oss 20B (local, 32k ctx…) Ollama (local)`. Type a task and press Enter. The footer
+That's it. It opens a TUI already set to `gpt-oss-agent-64k` (local) — the status line reads
+`Build · gpt-oss 20B (local, 64k ctx…) Ollama (local)`. Type a task and press Enter. The footer
 shows the keys: `tab` switches agents, `ctrl+p` opens the command palette.
 
 ### 2b. VS Code
@@ -166,8 +166,11 @@ Before testing, the concern was real: naive linear KV-cache scaling from 4096 to
 
 **+360 MB for 8x the context.** gpt-oss-20b's actual KV-cache footprint per token is far smaller
 than the worst-case estimate — plausibly grouped-query attention with few KV heads. 32k was chosen
-over the documented 64k specifically because it already fixed the problem in testing at negligible
-extra cost; 64k was not tested and may cost more, proportionally or not — unverified either way.
+at the time over the documented 64k because it already fixed the problem in testing at negligible
+extra cost, and 64k was untested.
+
+**64k was tested later (2026-08-28)** and confirmed just as cheap — see "Context and memory" below.
+It is now the default (`gpt-oss-agent-64k`); `gpt-oss-agent-32k` stays registered for reference.
 
 ### The fix does not transfer to qwen2.5-coder
 
@@ -260,6 +263,7 @@ under `$HOME`, not project-scoped like everything under `~/AI/`):
       "name": "Ollama (local)",
       "options": { "baseURL": "http://127.0.0.1:11434/v1" },
       "models": {
+        "gpt-oss-agent-64k": { "name": "gpt-oss 20B (local, 64k ctx) - default" },
         "gpt-oss-agent-32k": { "name": "gpt-oss 20B (local, 32k ctx, tool-calling verified)" },
         "qwen2.5-coder-agent-32k": { "name": "Qwen2.5-Coder 14B (local, 32k ctx)" },
         "gpt-oss:20b": { "name": "gpt-oss 20B (local, default 4k ctx - unreliable, see above)" },
@@ -267,7 +271,7 @@ under `$HOME`, not project-scoped like everything under `~/AI/`):
       }
     }
   },
-  "model": "ollama/gpt-oss-agent-32k",
+  "model": "ollama/gpt-oss-agent-64k",
   "autoupdate": false,
   "share": "disabled",
   "permission": {
@@ -279,8 +283,10 @@ under `$HOME`, not project-scoped like everything under `~/AI/`):
 ```
 
 **The 4096-ctx model tags are kept registered deliberately** — as a live reminder and a way to
-reproduce the original failure if this needs debugging again. `ollama/gpt-oss-agent-32k` is the
-default; every other entry here is unreliable or unverified for actual agentic use.
+reproduce the original failure if this needs debugging again. `ollama/gpt-oss-agent-64k` is the
+default (moved from 32k on 2026-08-28, see "Context and memory" below); `gpt-oss-agent-32k` stays
+registered and works identically, just with less headroom. Every other entry here is unreliable or
+unverified for actual agentic use.
 
 **On the `permission` block:** in-project tools are allowed so non-interactive runs don't stall
 waiting for approval that can never arrive. `external_directory` stays at `ask` on purpose — see
@@ -300,6 +306,9 @@ Not stored as files in this repo — two lines each, reproduced here:
 
 ```fish
 echo "FROM gpt-oss:20b
+PARAMETER num_ctx 65536" | ollama create gpt-oss-agent-64k -f -
+
+echo "FROM gpt-oss:20b
 PARAMETER num_ctx 32768" | ollama create gpt-oss-agent-32k -f -
 
 echo "FROM qwen2.5-coder:14b-instruct-q4_K_M
@@ -317,7 +326,7 @@ Both reuse the base model's existing weight layers — no re-download, seconds t
 ```fish
 systemctl --user start ollama    # opencode needs a running Ollama server
 cd your-project
-opencode                         # TUI, uses gpt-oss-agent-32k by default
+opencode                         # TUI, uses gpt-oss-agent-64k by default
 ```
 
 The TUI is the recommended mode. Everything works there: it has a terminal, so it can prompt for
@@ -378,22 +387,22 @@ indication that caching is off. Ollama's log is the authority.
 
 ### Layer 2 — how big the window can be
 
-`gpt-oss:20b` supports **131 072** natively; our `gpt-oss-agent-32k` tag pins `num_ctx 32768`.
-Raising it is cheap until it isn't:
+`gpt-oss:20b` supports **131 072** natively. Measured at each size before deciding:
 
 | `num_ctx` | Placement | VRAM (total, incl. desktop) | Generation |
 |---:|---|---:|---:|
-| 32 768 (current) | 100% GPU | 13 615 MiB | 91.7 tok/s |
-| 65 536 | 100% GPU | 14 085 MiB | 87.6 tok/s |
+| 32 768 | 100% GPU | 13 615 MiB | 91.7 tok/s |
+| **65 536 (current default)** | **100% GPU** | **14 085 MiB** | **87.6 tok/s** |
 | 131 072 | **11% CPU / 89% GPU** | 14 821 MiB | 80.1 tok/s |
 
-**64k is the practical ceiling on this card** — doubling the window costs only ~470 MiB thanks to
-the q8_0 KV cache, and stays fully on the GPU. 128k spills 11% of the model to CPU and gives up
-~13% of generation speed. To change it, recreate the tag (seconds, reuses existing weight layers):
+**64k is the practical ceiling on this card, and is what `gpt-oss-agent-64k` is now built as** —
+doubling from 32k costs only ~470 MiB thanks to the q8_0 KV cache and stays fully on the GPU.
+128k spills 11% of the model to CPU for ~13% less generation speed, so it was not adopted.
+`gpt-oss-agent-32k` remains registered for reference; recreate either with:
 
 ```fish
 printf 'FROM gpt-oss:20b\nPARAMETER num_ctx 65536\n' > /tmp/Modelfile
-ollama create gpt-oss-agent-64k -f /tmp/Modelfile
+ollama create gpt-oss-agent-64k -f /tmp/Modelfile   # reuses existing weight layers, no re-download
 ```
 
 ### Layer 3 — what opencode spends it on
@@ -406,8 +415,8 @@ prompt plus the full schemas for `bash`, `edit`, `glob`, `grep`, `read`, `write`
 {"total": 6833, "input": 6774, "output": 59, "reasoning": 0}
 ```
 
-So of a 32 768-token window, roughly **21% is gone at session start**, leaving ~26k for the
-conversation, file contents and tool output. A couple of large file reads consume it quickly.
+At the current 65 536-token window that's roughly **10% gone at session start**, leaving ~58.7k
+for the conversation, file contents and tool output — double the ~26k that was left at 32k.
 
 When it fills, opencode **auto-compacts** — it summarises the conversation so far and continues
 (`compactAfterOverflow`; disable with `OPENCODE_DISABLE_AUTOCOMPACT=1`). Compaction is lossy: the
@@ -420,7 +429,8 @@ model keeps a summary, not the transcript. For long sessions this is the practic
   fresh session costs only the ~6.5k baseline.
 - `AGENTS.md` is prepended to every session, so keep it short — it is charged against the window
   each time.
-- If you routinely hit compaction, move to a 64k tag before anything else. It is nearly free.
+- Already on the 64k tag by default. If compaction still gets hit often, 128k is the only headroom
+  left, and it costs a real GPU→CPU split — see the table above before reaching for it.
 
 ---
 
