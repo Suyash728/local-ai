@@ -49,7 +49,7 @@ commands you print for the user.
 3. **Never use system Python (3.14.x) for ML.** Use a uv-managed 3.12 venv.
 4. **PyTorch must be cu130.** See §4. cu126 and older give
    `no kernel image is available for execution on the device` on sm_120.
-5. **Storage is the binding constraint.** ~44 GiB free on a drive shared with Windows 11.
+5. **Storage is the binding constraint.** ~50 GiB free on a drive shared with Windows 11.
    State the size of any download *before* proposing it, and keep a running total.
 6. **Do not enable services at boot.** systemd **user** units, started on demand.
 7. **Verify, don't assume.** VRAM figures, quant sizes and sm_120 support change monthly.

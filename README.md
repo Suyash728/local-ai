@@ -17,7 +17,7 @@ What is installed, where things live, and how to start them.
 | Track A — LLMs | ✅ **DONE & VERIFIED** (2026-08-23) |
 | Track B — ComfyUI | ✅ **DONE & VERIFIED** (2026-08-24) |
 | Track C — Video | ⛔ deferred by decision (needs 64 GiB RAM) |
-| Free disk | ~44 GiB |
+| Free disk | ~50 GiB |
 
 ---
 
@@ -275,7 +275,12 @@ Peak VRAM **8.0 GiB** (vs FLUX's 12.3).
 skin micro-texture. FLUX still has the larger LoRA/ControlNet ecosystem.
 
 
-### FLUX.2-klein-9B (NVFP4) — added 2026-08-24, corrected same day
+### FLUX.2-klein-9B (NVFP4) — added 2026-08-24, corrected same day, **removed 2026-08-29**
+
+**No longer installed** — both files below were deleted to reclaim ~11.7 GiB, along with its
+dedicated `qwen_3_8b_fp4mixed.safetensors` text encoder (used by no other installed model). The
+rest of this section is kept as a historical record; nothing here is currently usable. See
+`MODEL-COMPARISON.md` for how it compared to what's still installed.
 
 BFL's distilled FLUX.2, non-commercial. **License: `flux-non-commercial-license`, same family as
 FLUX.1-dev — not for commercial use.** Repo is gated; requires clicking "Agree" at

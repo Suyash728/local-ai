@@ -109,20 +109,16 @@ These are the exact values used for every comparison in `MODEL-COMPARISON.md`.
 | KSampler | 8 steps, cfg **1.0**, euler / simple |
 | Guidance node | none — Z-Image doesn't use one |
 
-### FLUX.2-klein-9B
+### FLUX.2-klein-9B — removed 2026-08-29
 
-| Node | Setting |
-|---|---|
-| Load Diffusion Model | `flux-2-klein-9b-nvfp4.safetensors` |
-| Load CLIP | `qwen_3_8b_fp4mixed.safetensors`, type **`stable_diffusion`** |
-| Load VAE | `flux2-vae.safetensors` — **not** `ae.safetensors`, different file |
-| Empty Latent Image | **`Empty Flux 2 Latent`** node (`EmptyFlux2LatentImage`) — search for "flux 2" when adding the node |
-| Flux Guidance node | insert between positive CLIP Text Encode and KSampler, value **2.0** |
-| KSampler | 28 steps, cfg **1.0**, euler / simple |
+No longer installed (~11.7 GiB reclaimed, including its dedicated Qwen3-8B text encoder). The
+table below is kept for reference — it followed exactly the same node shape as FLUX.2-dev, just
+with `qwen_3_8b_fp4mixed.safetensors` / `stable_diffusion` for CLIP, guidance **2.0**, and 20s
+warm renders vs FLUX.2-dev's 80s.
 
 ### FLUX.2-dev
 
-Same shape as klein-9B, different files:
+Same node shape as klein-9B was, different files:
 
 | Node | Setting |
 |---|---|

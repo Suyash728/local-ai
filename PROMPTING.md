@@ -3,6 +3,9 @@
 Tested on this machine across FLUX.1-dev, Z-Image Turbo and FLUX.2-klein-9B (all NVFP4), roughly
 115 generated images inspected individually, 2026-08-24/25. Condensed to current findings — see
 git history for the full batch-by-batch record if the reasoning behind any of this is needed.
+**Neither FLUX.1-dev nor FLUX.2-klein-9B (removed 2026-08-29) is still installed** — their
+findings are kept below where they illustrate something general (e.g. the hands/mirror failures
+are FLUX.1-specific, not FLUX.2-family).
 
 ---
 
@@ -59,6 +62,8 @@ seeds show the same problem.
 ---
 
 ## Settings by model
+
+Neither FLUX.1-dev nor FLUX.2-klein-9B is currently installed; kept for reference.
 
 | Parameter | FLUX.1-dev | Z-Image Turbo | FLUX.2-klein-9B |
 |---|---|---|---|

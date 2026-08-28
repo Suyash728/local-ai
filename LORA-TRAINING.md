@@ -74,8 +74,9 @@ The `~/AI/models/comfyui/*.safetensors` files are 4-bit **inference** checkpoint
 BF16 weights, which ai-toolkit pulls from HuggingFace into `HF_HOME` (`~/AI/models/hf`) on the
 first run of a config. Nothing already on disk shortcuts this.
 
-**Disk is the binding constraint** (44 GiB free after this install, `CLAUDE.md` §5). Pick one
-model to start; two of them do not fit together.
+**Disk is the binding constraint** (~50 GiB free, `CLAUDE.md` §5 — klein-9B's inference checkpoint
+was removed 2026-08-29, reclaiming ~11.7 GiB; unrelated to this trainer, which pulls its own BF16
+weights). Pick one model to start; two of them do not fit together.
 
 ---
 

@@ -3,7 +3,9 @@
 All three NVFP4, on an RTX 5060 Ti (sm_120), all at 832x1216. Findings come from
 **~115 generated images across six batches** on 2026-08-24/25, all inspected individually.
 FLUX.1-dev was also compared before being removed from the machine; its results are kept where
-they add contrast.
+they add contrast. **FLUX.2-klein-9B was removed from the machine on 2026-08-29** (~11.7 GiB
+reclaimed, including its dedicated Qwen3-8B text encoder) — its results are kept below for the
+same reason. Only Z-Image Turbo and FLUX.2-dev are currently installed.
 
 **Settings used throughout:** Z-Image 8 steps / cfg 1.0 / euler-simple. klein-9B 28 steps /
 guidance 2.0. FLUX.2-dev 28 steps / guidance 4.0. Both FLUX.2 models use `EmptyFlux2LatentImage`
@@ -174,20 +176,21 @@ a render toward more undressed framing than the scene implied. Stating wardrobe 
 
 ## Practical guidance
 
+**klein-9B is no longer installed** (removed 2026-08-29). The guidance below is kept for the
+record; only the Z-Image and FLUX.2-dev advice is currently actionable.
+
 **Use Z-Image when:** iterating on prompts, generating volume, the scene is dim, hands are in
 frame, the output might be used commercially, or you want a result you can trust without
 inspecting it.
 
-**Use klein-9B when:** the scene is well-lit, material or environmental texture is the point
+**Used klein-9B when:** the scene is well-lit, material or environmental texture is the point
 (fabric, food, tools, weathered surfaces), reflections need to be geometrically correct, or you
-are producing a small number of hero images and will inspect each one.
+were producing a small number of hero images and would inspect each one. FLUX.2-dev is the closest
+still-installed alternative for this case, at a real cost in speed (see the table above).
 
 **Use FLUX.2-dev when:** the image genuinely matters more than the 80 seconds — a hero shot, a
-final render, something where klein's texture is not quite enough. Not for iteration, not for
+final render, something where Z-Image's texture is not quite enough. Not for iteration, not for
 volume, and not while you need the GPU for anything else.
-
-**Always, for klein-9B face renders in low light:** generate 2-3 seeds and look at each. Do not
-trust a single render because the log showed no errors.
 
 For exploratory work, the speed ratio in the table above matters more than it looks: thirteen
 Z-Image attempts at a prompt will almost always beat one FLUX.2-dev attempt, because the real

@@ -17,8 +17,10 @@ not quoted.
 | Works on | all three models | **FLUX.2 only** — see warning below |
 
 ![img2img vs reference](docs/samples/i2i_vs_reference_klein.jpg)
-<sub>Same source, same prompt, klein-9B. Middle: img2img at 0.60 — the market survives, the
-fishmonger does not. Right: `ReferenceLatent` — she survives, the scene is re-rendered.</sub>
+<sub>Same source, same prompt, klein-9B (removed 2026-08-29 — image kept, the model that made it
+is gone). Middle: img2img at 0.60 — the market survives, the fishmonger does not. Right:
+`ReferenceLatent` — she survives, the scene is re-rendered. The distinction between the two tools
+still holds on FLUX.2-dev, the still-installed model this behavior was shared with.</sub>
 
 Reach for **img2img** to restyle a scene or generate variations of a composition. Reach for
 **reference edit** to keep a person or object consistent across images.
@@ -32,10 +34,10 @@ The workflows are saved and appear in the browser's Workflows sidebar:
 | Workflow | What it does |
 |---|---|
 | `z-image-turbo-img2img` | fastest img2img, ~5 s |
-| `flux2-klein-9b-img2img` | img2img with klein's texture detail |
 | `flux2-dev-img2img` | img2img at the quality ceiling |
-| `flux2-klein-9b-edit-reference` | identity-preserving edit |
-| `flux2-dev-edit-reference` | identity-preserving edit, slowest |
+| `flux2-dev-edit-reference` | identity-preserving edit |
+
+The klein-9B equivalents of both workflows were removed along with the model (2026-08-29).
 
 1. `systemctl --user start comfyui`, open <http://127.0.0.1:8188>
 2. Put your source image in `~/AI/ComfyUI/input/` (or drag it onto the `Load Image` node)
@@ -95,8 +97,10 @@ changed, 0.55-0.65 is the band; for the same person rendered better, 0.30-0.45.
 ## Settings per model
 
 Same loader pairings as text-to-image (see `COMFYUI-WEB.md`); only the latent path differs.
+FLUX.2-klein-9B's column is kept for reference (same settings pattern as FLUX.2-dev) — it is no
+longer installed, so its filenames below will not resolve.
 
-| | Z-Image Turbo | FLUX.2-klein-9B | FLUX.2-dev |
+| | Z-Image Turbo | FLUX.2-klein-9B (removed) | FLUX.2-dev |
 |---|---|---|---|
 | Diffusion model | `z_image_turbo_nvfp4` | `flux-2-klein-9b-nvfp4` | `flux2-dev-nvfp4` |
 | CLIP / type | `qwen_3_4b_fp4_mixed` / `stable_diffusion` | `qwen_3_8b_fp4mixed` / `stable_diffusion` | `mistral_3_small_flux2_fp4_mixed` / `flux2` |
@@ -133,8 +137,9 @@ checkpoints — `Z-Image-Turbo` and `Z-Image` (base). Neither is an editing mode
 official Z-Image-Edit release. (The "z-image-edit" name online belongs to a third-party website,
 not a checkpoint.)
 
-For identity-preserving edits on this machine, use **klein-9B**. For refining an image while
-keeping the subject, use Z-Image img2img at denoise 0.30-0.45 with steps scaled — see above.
+For identity-preserving edits on this machine, use **FLUX.2-dev** (klein-9B did this too, and was
+faster at it, but was removed 2026-08-29). For refining an image while keeping the subject, use
+Z-Image img2img at denoise 0.30-0.45 with steps scaled — see above.
 
 ---
 
@@ -174,7 +179,7 @@ already do.
 | Model | img2img (denoise 0.60) | reference edit |
 |---|---:|---:|
 | Z-Image Turbo | **8.0 s** (13 steps) | — (corrupts) |
-| FLUX.2-klein-9B | 33 s † | 49 s |
+| FLUX.2-klein-9B (removed 2026-08-29) | 33 s † | 49 s |
 | FLUX.2-dev | 111 s † | 150 s |
 
 Z-Image step-compensated timings: 24.2 s at denoise 0.30 (27 steps), 11.0 s at 0.45 (18),
@@ -196,8 +201,11 @@ Verified API-format graphs — the exact JSON that produced every number in the 
 tracked at `configs/comfyui-workflows/`:
 
 ```
-i2i_zimage.json   i2i_klein.json   i2i_f2dev.json   edit_klein.json   edit_f2dev.json
+i2i_zimage.json   i2i_f2dev.json   edit_f2dev.json
 ```
+
+(`i2i_klein.json` and `edit_klein.json` were removed with the model on 2026-08-29; the klein-9B
+numbers in the table above are the last measurements taken before deletion.)
 
 POST one to `/prompt` and poll `/history/<prompt_id>`, as described at the end of
 `COMFYUI-WEB.md`. These are the artifacts to trust: the sidebar workflows were generated from
