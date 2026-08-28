@@ -205,16 +205,36 @@ The symptom is nasty because it does not look like a hallucination: `opencode ru
 redirected produces **no output, no error, and a non-zero exit after the timeout**. Only a TTY or
 `--format json` reveals the rejected path.
 
-**Fix: `~/.config/opencode/AGENTS.md`**, loaded automatically for every session, telling the model
-to use project-relative paths and to reuse path strings exactly as tools return them:
+#### Why it happens — and why the first fix only half-worked
 
-> Use paths relative to the project root for every tool call. Never write an absolute path. If a
-> tool returns a path, reuse that exact string — do not retype it or complete it from memory.
+opencode's **own system prompt tells the model to construct absolute paths**:
 
-Verified: 3 consecutive runs afterwards, **zero hallucinated paths**, all three edits applied.
-`external_directory` is deliberately left at `ask` rather than `allow` in the config below — it is
-the guard that caught this, and allowing it would have let the model write to a path that does not
-exist instead of failing loudly.
+> **Path Construction:** Before using any file system tool (e.g. `read` or `write`), you must
+> construct the full absolute path for the file_path argument. Always combine the absolute path of
+> the project's root directory with the file's path relative to the root.
+
+(Read out of the binary: `strings (readlink -f (which opencode)) | grep -i "absolute path"`.)
+
+The first attempt at a fix told the model the opposite — "never write an absolute path" — which
+put `AGENTS.md` in direct conflict with the system prompt. The model followed one or the other
+roughly half the time, which is exactly the intermittent failure rate observed. **Do not fight
+opencode's prompt.**
+
+#### The fix that works: pin the literal home directory
+
+`~/.config/opencode/AGENTS.md` now works *with* the absolute-path requirement and removes the need
+to recall the one string the model kept getting wrong:
+
+> The home directory on this machine is exactly `/home/suyash`. It is spelled s-u-y-a-s-h. Never
+> write any other spelling. When a tool returns a path, reuse that exact string. Before calling
+> `write` or `edit`, check the path starts with the project root you were given.
+
+Measured after this change — **7/7 writes succeeded, 0 mistyped paths**: 4 runs creating a file at
+the project root, plus 3 creating `src/utils/slugify.py`, the harder nested case.
+
+`external_directory` stays at `ask` rather than `allow`. Allowing it would silence the prompt by
+letting the model write to `/home/suyark/...` — a directory that does not exist — instead of
+failing visibly. The prompt is the symptom; the path is the bug.
 
 ### A CLI shortcut that didn't work as documented
 
