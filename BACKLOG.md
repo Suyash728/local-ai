@@ -15,17 +15,17 @@ Status key: ⬜ not started · 🟡 in progress · ✅ done · ❌ declined
 
 | # | Item | Cost | Status | Assessment |
 |---|---|---|:--:|---|
-| A1 | **MCP servers** (filesystem, git, browser, code-exec) for OpenCode | ~0 GiB | ⬜ | **Best value per byte in the whole list.** `opencode mcp` is already built in |
-| A2 | **LocalAI** — OpenAI/Anthropic-compatible API, agents, MCP, web UI | ~2–5 GiB + a service | ❌ | Duplicates a working endpoint at `127.0.0.1:11434/v1` |
-| A3 | **LocalAGI** — agent platform, Responses-API compatible | similar | ❌ | Same objection as A2 |
-| A4 | **CrewAI / LangGraph** multi-agent | ~1 GiB Python deps | ❌ | Multi-agent multiplies a model measured at only 2/4–3/3 single-agent reliability |
-| A5 | **Vector store** — Chroma / LanceDB / Qdrant + `nomic-embed-text` | <1 GiB | ⬜ | Real capability; the embedder is already installed |
-| A6 | **AnythingLLM** — all-in-one UI + knowledge base | ~1–2 GiB | ❌ | Overlaps A5 + A11; pick one, not three |
-| A7 | **Playwright** browser automation | ~0.5 GiB | ⬜ | Delivers the "browser use" goal; Node 24 already present |
-| A8 | **faster-whisper / whisper.cpp** (STT) | ~1–3 GiB | ⬜ | Works fine, but not aligned to the stated priorities |
-| A9 | **Piper / Coqui-XTTS** (TTS) | ~1–2 GiB | ⬜ | Same as A8 |
-| A10 | **nvtop / gpustat** monitoring | ~10 MiB | ⬜ | Trivial, and genuinely useful given the VRAM discipline rules |
-| A11 | **OpenWebUI** chat UI | ~1–2 GiB | ⬜ | There is currently no chat UI at all on this machine |
+| A1 | **MCP servers** (filesystem, git, browser, code-exec) for OpenCode | ~0 GiB | ✅ | 6/6 connect, but local 20B can't drive MCP tools — see `AGENTIC-STACK.md` |
+| A2 | **LocalAI** — OpenAI/Anthropic-compatible API, agents, MCP, web UI | ~2–5 GiB + a service | ✅ | Built at user request. Shares Ollama's GGUF by symlink; verified 11 s completion |
+| A3 | **LocalAGI** — agent platform, Responses-API compatible | similar | ✅ | Built at user request — from source (no binaries, Docker-first). Serves :3000. Binds 0.0.0.0 |
+| A4 | **CrewAI / LangGraph** multi-agent | ~1 GiB Python deps | ✅ | Both verified against local Ollama. Reliability caveat stands for real multi-agent work |
+| A5 | **Vector store** — Chroma / LanceDB / Qdrant + `nomic-embed-text` | <1 GiB | ✅ | Real capability; the embedder is already installed |
+| A6 | **AnythingLLM** — all-in-one UI + knowledge base | ~1–2 GiB | ✅ | Built at user request. AppImage runs; overlap with A5/A11 is now real, pick per task |
+| A7 | **Playwright** browser automation | ~0.5 GiB | ✅ | Delivers the "browser use" goal; Node 24 already present |
+| A8 | **faster-whisper / whisper.cpp** (STT) | ~1–3 GiB | ✅ | Works fine, but not aligned to the stated priorities |
+| A9 | **Piper / Coqui-XTTS** (TTS) | ~1–2 GiB | ✅ | Same as A8 |
+| A10 | **nvtop / gpustat** monitoring | ~10 MiB | 🟡 | gpustat done; **nvtop needs `sudo pacman -S nvtop`** (no passwordless sudo) |
+| A11 | **OpenWebUI** chat UI | ~1–2 GiB | ✅ | There is currently no chat UI at all on this machine |
 
 ## B. Image generation
 
@@ -61,12 +61,12 @@ Status key: ⬜ not started · 🟡 in progress · ✅ done · ❌ declined
 
 | # | Item | Cost | Status | Assessment |
 |---|---|---|:--:|---|
-| E1 | **`gemma-4-12b-heretic-abliterated`** Q4_K_M | **6.87 GiB** | ⬜ | Best all-rounder. ≈disk-neutral if swapping out `gemma3:12b` (7.6 GB) |
-| E2 | **`Qwen3-VL-8B-Instruct-abliterated`** Q6_K | **6.26 GiB** | ⬜ | Vision-capable uncensored |
-| E3 | `Huihui-Qwen3.6-27B-abliterated` Q3_K | 12.57 GiB | ⬜ | Larger, but Q3 costs real quality |
-| E4 | Create a **64k context tag** for the chosen model, register in OpenCode | ~0 | ⬜ | Same Modelfile trick as the existing agent tags (reuses layers) |
+| E1 | **`gemma-4-12b-heretic-abliterated`** Q4_K_M | **6.87 GiB** | ✅ | Best all-rounder. ≈disk-neutral if swapping out `gemma3:12b` (7.6 GB) |
+| E2 | **`Qwen3-VL-8B-Instruct-abliterated`** Q6_K | **6.26 GiB** | ✅ | Vision-capable uncensored |
+| E3 | `Huihui-Qwen3.6-27B-abliterated` Q3_K | 12.57 GiB | 🟡 | Larger, but Q3 costs real quality |
+| E4 | Create a **64k context tag** for the chosen model, register in OpenCode | ~0 | ✅ | Same Modelfile trick as the existing agent tags (reuses layers) |
 | E5 | NSFW LoRAs on SDXL/Pony | ~1–3 GiB | ⬜ | Requires B4 |
-| E6 | Test refusal behaviour rather than trusting the "uncensored" label | ~0 | ⬜ | Worth actually doing — the label is not evidence |
+| E6 | Test refusal behaviour rather than trusting the "uncensored" label | ~0 | ✅ | A/B done: gpt-oss refused, gemma4-heretic complied. Abliteration is real |
 
 ## F. Rules & documentation
 

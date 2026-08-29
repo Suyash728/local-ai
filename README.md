@@ -3,6 +3,7 @@
 What is installed, where things live, and how to start them.
 **Rules for Claude Code sessions:** `CLAUDE.md`. **Full plan & reasoning:** `PLAN.md`.
 **What to build next:** `ROADMAP.md`. **Full candidate list, triaged:** `BACKLOG.md`.
+**Agentic stack (MCP, LocalAI, RAG, speech, uncensored models):** `AGENTIC-STACK.md`.
 **Getting photoreal people out of FLUX:** `PROMPTING.md`.
 **Which image model to use:** `MODEL-COMPARISON.md`.
 **Using ComfyUI's browser UI:** `COMFYUI-WEB.md`.
@@ -63,6 +64,9 @@ SageAttention ever gets built from source in Track B.
 | `gemma3:12b` | 8.1 GB | general purpose, 128k ctx, vision | **47.8 tok/s** |
 | `qwen2.5-coder:1.5b-base` | 986 MB | tab autocomplete (FIM) | **265.1 tok/s** |
 | `nomic-embed-text` | 274 MB | `@codebase` indexing | 768-dim |
+| `gpt-oss-agent-64k` | 13 GB | **opencode default**, 64k ctx (shares gpt-oss blob) | 87.6 tok/s, 100% GPU |
+| `gemma4-heretic-64k` | 7.4 GB | uncensored chat/roleplay (`AGENTIC-STACK.md`) | refusal A/B verified |
+| `qwen3vl-abliterated-64k` | 7.9 GB | uncensored + **vision** (needs mmproj) | vision verified |
 
 **Why `1.5b-base` and not instruct:** autocomplete is fill-in-the-middle, not chat, and it is
 latency-bound. A 14B would feel awful for tab-completion. Verified: given
@@ -112,7 +116,8 @@ Live at `~/.config/systemd/user/ollama.service`; tracked copy in `configs/ollama
 
 ⚠️ **systemd does not inherit fish variables.** Every var is repeated as an `Environment=` line
 inside the unit. **If you change one, change it in both places.** The unit also sets
-`OLLAMA_KEEP_ALIVE=5m` so an idle session releases VRAM.
+`OLLAMA_KEEP_ALIVE=30m` (raised from 5m — many services now hit ollama; see `AGENTIC-STACK.md`)
+and `OLLAMA_NUM_PARALLEL=1`.
 
 After editing: `systemctl --user daemon-reload; systemctl --user restart ollama`
 
@@ -162,7 +167,7 @@ Endpoint for anything OpenAI-compatible: **`http://127.0.0.1:11434/v1`**
 | Model on CPU instead of GPU | `ollama ps` → PROCESSOR column. Check `journalctl --user -u ollama` for `library=CUDA compute=12.0` |
 | Slow first response | Cold load of 9 GB from a DRAM-less QLC drive (~3.9 s measured). Subsequent calls are warm. |
 | Port 11434 in use | The system unit may have started. `systemctl is-active ollama.service` — it should be `inactive`. Optionally `sudo systemctl mask ollama.service`. |
-| VRAM not released | `OLLAMA_KEEP_ALIVE=5m`. Force now: `systemctl --user stop ollama` |
+| VRAM not released | `OLLAMA_KEEP_ALIVE=30m`. Force now: `systemctl --user stop ollama` |
 
 ### Optional hardening (not done)
 ```fish

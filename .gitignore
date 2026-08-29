@@ -7,6 +7,9 @@
 # --- Python venvs ---
 comfy-venv/
 comfy-venv-cu130/
+/agent-venv/
+/speech-venv/
+/openwebui-venv/
 .venv/
 venv/
 __pycache__/
@@ -28,6 +31,15 @@ ComfyUI/
 # anchored: an unanchored `ai-toolkit/` also matches configs/ai-toolkit/,
 # which holds training configs we DO want tracked.
 /ai-toolkit/
+/localai/
+/localagi/
+/anythingllm/
+# userspace Go toolchain, installed only to build LocalAGI from source
+/go/
+
+# --- secrets ---
+# open-webui drops this in its working directory on first start
+.webui_secret_key
 
 # --- Caches & generated output ---
 .cache/

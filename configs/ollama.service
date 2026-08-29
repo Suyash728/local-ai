@@ -17,10 +17,18 @@ Environment=OLLAMA_HOST=127.0.0.1:11434
 Environment=OLLAMA_FLASH_ATTENTION=1
 Environment=OLLAMA_KV_CACHE_TYPE=q8_0
 Environment=OLLAMA_MAX_LOADED_MODELS=1
+# NUM_PARALLEL: 1 by default. 2 slots measured +32% aggregate (121.9 vs 92.2 tok/s)
+# but only helps under concurrent load, and forces the 32k tag (2x64k KV spills
+# 11% to CPU). The 6 MCP servers cost ~5.4k tokens of every request, so context
+# headroom beat concurrency here. Set to 2 + use the 32k tag if running several
+# services at once.
+Environment=OLLAMA_NUM_PARALLEL=1
 
 # Unload the model from VRAM 5 minutes after last use, so an idle session
 # does not hold ~10 GiB of VRAM (and the associated power draw) forever.
-Environment=OLLAMA_KEEP_ALIVE=5m
+# raised from 5m: many services (opencode, OpenWebUI, LocalAGI, CrewAI, MCP) now
+# hit ollama; reloading 14 GiB per idle gap dominated real latency.
+Environment=OLLAMA_KEEP_ALIVE=30m
 
 [Install]
 WantedBy=default.target
