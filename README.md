@@ -2,6 +2,7 @@
 
 What is installed, where things live, and how to start them.
 **Rules for Claude Code sessions:** `CLAUDE.md`. **Full plan & reasoning:** `PLAN.md`.
+**What to build next:** `ROADMAP.md`.
 **Getting photoreal people out of FLUX:** `PROMPTING.md`.
 **Which image model to use:** `MODEL-COMPARISON.md`.
 **Using ComfyUI's browser UI:** `COMFYUI-WEB.md`.
@@ -16,8 +17,8 @@ What is installed, where things live, and how to start them.
 | Machine | Ryzen 5 5600 · RTX 5060 Ti 16G (sm_120) · 31 GiB RAM · CachyOS |
 | Track A — LLMs | ✅ **DONE & VERIFIED** (2026-08-23) |
 | Track B — ComfyUI | ✅ **DONE & VERIFIED** (2026-08-24) |
-| Track C — Video | ⛔ deferred by decision (needs 64 GiB RAM) |
-| Free disk | ~50 GiB |
+| Track C — Video | ⏸ not built — ComfyUI support is already native, blocker is RAM (`ROADMAP.md`) |
+| Free disk | ~112 GiB |
 
 ---
 
