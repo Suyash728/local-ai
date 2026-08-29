@@ -63,7 +63,7 @@ Status key: ⬜ not started · 🟡 in progress · ✅ done · ❌ declined
 |---|---|---|:--:|---|
 | E1 | **`gemma-4-12b-heretic-abliterated`** Q4_K_M | **6.87 GiB** | ✅ | Best all-rounder. ≈disk-neutral if swapping out `gemma3:12b` (7.6 GB) |
 | E2 | **`Qwen3-VL-8B-Instruct-abliterated`** Q6_K | **6.26 GiB** | ✅ | Vision-capable uncensored |
-| E3 | `Huihui-Qwen3.6-27B-abliterated` Q3_K | 12.57 GiB | 🟡 | Larger, but Q3 costs real quality |
+| E3 | `Huihui-Qwen3.6-27B-abliterated` Q3_K | 12.57 GiB | ✅ | Done at **16k** ctx — 32k spills to CPU (19.0 tok/s); 16k is 100% GPU at 25.7 tok/s |
 | E4 | Create a **64k context tag** for the chosen model, register in OpenCode | ~0 | ✅ | Same Modelfile trick as the existing agent tags (reuses layers) |
 | E5 | NSFW LoRAs on SDXL/Pony | ~1–3 GiB | ⬜ | Requires B4 |
 | E6 | Test refusal behaviour rather than trusting the "uncensored" label | ~0 | ✅ | A/B done: gpt-oss refused, gemma4-heretic complied. Abliteration is real |

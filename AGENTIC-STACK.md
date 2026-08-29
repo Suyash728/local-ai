@@ -147,9 +147,14 @@ browser first-run setup (account creation), which is why its API reports 0 model
 |---|---|---:|---:|---|
 | `gemma4-heretic-64k` | gemma-4-12b-heretic-abliterated Q4_K_M | 7.4 GB | 65536 | ✅ verified |
 | `qwen3vl-abliterated-64k` | Qwen3-VL-8B-Instruct-abliterated Q6_K + mmproj-f16 | 7.9 GB | 65536 | ✅ verified, vision works |
-| `qwen36-abliterated-32k` | Huihui-Qwen3.6-27B-abliterated Q3_K | ~12.6 GB | 32768 | ⏳ download in progress |
+| `qwen36-abliterated-16k` | Huihui-Qwen3.6-27B-abliterated Q3_K | 13 GB | 16384 | ✅ verified — see note |
 
-Both are registered in `opencode.json` and selectable there.
+All three are registered in `opencode.json` and selectable there.
+
+**Why the 27B is capped at 16k, not 32k.** At `num_ctx 32768` it does not fit: measured
+**19.0 tok/s with a 7%/93% CPU spill**. At **16384 it sits 100% on the GPU at 25.7 tok/s** — 35%
+faster *and* fully resident. It is still ~4x slower than the 12B/8B tags (87–96 tok/s), so treat it
+as the "quality when you can wait" option rather than a daily driver.
 
 ### E6 — the label is not evidence, so it was tested
 

@@ -66,6 +66,7 @@ SageAttention ever gets built from source in Track B.
 | `nomic-embed-text` | 274 MB | `@codebase` indexing | 768-dim |
 | `gpt-oss-agent-64k` | 13 GB | **opencode default**, 64k ctx (shares gpt-oss blob) | 87.6 tok/s, 100% GPU |
 | `gemma4-heretic-64k` | 7.4 GB | uncensored chat/roleplay (`AGENTIC-STACK.md`) | refusal A/B verified |
+| `qwen36-abliterated-16k` | 13 GB | largest uncensored, 16k ctx | 25.7 tok/s, 100% GPU |
 | `qwen3vl-abliterated-64k` | 7.9 GB | uncensored + **vision** (needs mmproj) | vision verified |
 
 **Why `1.5b-base` and not instruct:** autocomplete is fill-in-the-middle, not chat, and it is
