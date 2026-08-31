@@ -7,6 +7,10 @@ commands, iterates — driven entirely by the local `gpt-oss:20b` model.
 Everything is already installed and configured. **Start here; the rest of this file is background
 on how it got that way, and is only needed when something misbehaves.**
 
+> ⚠️ **Headless `opencode run` is broken on 1.18.25** (pacman upgraded 1.18.23 → 1.18.25 on
+> 2026-08-30). It hangs at `init` and never creates a session. **The TUI is unaffected** — use
+> `cc`. See "The 1.18.25 headless regression" below, including the one-command downgrade.
+
 ---
 
 ## Quick start
@@ -24,9 +28,16 @@ free the ~14 GiB of VRAM.
 ### 2a. Terminal
 
 ```fish
-cd ~/my-project
-opencode
+cc ~/my-project      # strict: asks before every edit / most bash
+cc-plan ~/my-project # read-only: explores and proposes, cannot edit
 ```
+
+`cc` starts ollama if it is down, warns if ComfyUI is holding the GPU, and opens the TUI.
+`cc-plan` uses opencode's **built-in `plan` agent**, whose ruleset is `edit: {"*": "deny"}` — it can
+read and propose but not modify code (it may only write its plan under `.opencode/plans/`). That is
+the dry-run mode, and it already existed; nothing was built for it.
+
+Plain `opencode` still works and is identical to `cc` minus the preflight.
 
 That's it. It opens a TUI already set to `gpt-oss-agent-64k` (local) — the status line reads
 `Build · gpt-oss 20B (local, 64k ctx…) Ollama (local)`. Type a task and press Enter. The footer
@@ -79,11 +90,19 @@ genuinely useful and fails often enough that unreviewed commits would be a mista
 
 ### Scripting it
 
+⚠️ **Currently broken on 1.18.25** — see the regression section below. When on a working version:
+
 ```fish
-opencode run --format json "your task" > events.json
+oc-run "your task" > events.json
 ```
 
-Use `--format json` whenever output is redirected or piped — see the warning under Usage below.
+`oc-run` wraps `opencode run --auto --format json`. Both flags matter:
+
+- `--auto` auto-approves anything not explicitly **denied**. Without it the strict profile's `ask`
+  rules have nobody to answer in a non-TTY run, and an unanswered prompt is a *silent hang* — no
+  output, no error, timeout exit — not a refusal.
+- `--format json` because plain `opencode run` does the work but never exits when stdout is not a
+  TTY.
 
 ### If something looks wrong
 
@@ -275,9 +294,9 @@ under `$HOME`, not project-scoped like everything under `~/AI/`):
   "autoupdate": false,
   "share": "disabled",
   "permission": {
-    "read": "allow", "glob": "allow", "grep": "allow",
-    "edit": "allow", "write": "allow", "bash": "allow", "webfetch": "allow",
-    "external_directory": "ask"
+    "edit": "ask",
+    "bash": { "*": "ask", "git status": "allow", "git diff *": "allow",
+              "git log *": "allow", "ls *": "allow", "cat *": "allow" }
   }
 }
 ```
@@ -292,6 +311,32 @@ unverified for actual agentic use.
 waiting for approval that can never arrive. `external_directory` stays at `ask` on purpose — see
 the hallucinated-path section above. The valid keys were read out of the opencode binary
 (`bash`, `edit`, `read`, `write`, `glob`, `webfetch`, `external_directory`).
+
+### Wrapper commands in `~/.local/bin`
+
+| Command | What it does |
+|---|---|
+| `cc [dir]` | strict TUI; starts ollama, warns if ComfyUI holds the GPU |
+| `cc-plan [dir]` | read-only `plan` agent — proposes, cannot edit |
+| `oc-run "task"` | headless (`--auto --format json`) — **broken on 1.18.25** |
+| `deep-research "q"` | multi-round cited research (`DEEP-RESEARCH.md`) |
+| `ai-memory recall "q"` | search past research |
+
+`deep-research` and `ai-memory` are wrappers, not conveniences: the scripts carry
+`#!/usr/bin/env python3`, which resolves to system Python 3.14 — **which has no chromadb**. Running
+them directly does not crash, it *degrades silently*: `memory.py stats` reports `vectors n/a`
+instead of the real count, because the import failure is caught and the collection becomes `None`.
+Semantic recall would quietly return nothing. Always go through the wrapper.
+
+### MCP: disabled, not removed
+
+All six servers are `"enabled": false`. They connect fine but the local 20B cannot invoke them (an
+explicitly requested `git status` never completed in 10 minutes), and they cost **5,043 tokens of
+every request** — measured 12,157 → **7,114** input tokens on a trivial prompt after disabling.
+
+Everything they offered is reachable another way: `git` via bash, `fetch` via the built-in
+`webfetch`, `filesystem` via the built-in read/glob/grep. Re-enable them by flipping `enabled` if a
+stronger model is ever pointed at opencode.
 
 ### The other config file: `~/.config/opencode/AGENTS.md`
 
@@ -431,6 +476,89 @@ model keeps a summary, not the transcript. For long sessions this is the practic
   each time.
 - Already on the 64k tag by default. If compaction still gets hit often, 128k is the only headroom
   left, and it costs a real GPU→CPU split — see the table above before reaching for it.
+
+---
+
+## Permission profiles — the Claude Code gate
+
+The point of this setup is that the agent explores freely but **asks before it changes anything**.
+
+```json
+"permission": {
+  "edit": "ask",
+  "bash": { "*": "ask",
+            "git status": "allow", "git status *": "allow",
+            "git diff": "allow",   "git diff *": "allow",
+            "git log": "allow",    "git log *": "allow",
+            "git show *": "allow", "ls *": "allow", "cat *": "allow" }
+}
+```
+
+Read-only inspection runs without interruption; anything that mutates prompts first.
+
+### Four things about this system that are not obvious
+
+Read out of the binary — all four were got wrong on the first attempt.
+
+1. **There is no `write` permission.** The tools `edit`, `write` and `apply_patch` all resolve to
+   the single permission `edit`. A `"write": "ask"` key is silently accepted by the config schema's
+   catch-all and then never evaluated. Gate `edit`, not `write`.
+2. **Rules are concatenated and the LAST match wins** (`findLast`). Your config is appended after
+   the built-in defaults, so a flat value clobbers every default rule for that key. Inside an
+   object, **put broad rules first and narrow ones last** — `{"*": "ask", "git diff *": "allow"}`
+   works; reversing it does not.
+3. **Restating a key is destructive; omitting it is safe.** A flat `"read": "allow"` overwrites the
+   built-in dotenv guard (`{"*":"allow","*.env":"ask",…}`) so `.env` files stop prompting. A flat
+   `"external_directory": "ask"` overwrites a *computed allowlist* covering the project dirs and
+   `/tmp`, making ordinary work prompt constantly. Both keys are therefore **absent** above — the
+   defaults are better than anything worth restating.
+4. **Patterns are per-key and user-configurable.** `edit`/`read` match paths relative to the
+   worktree, `bash` matches command patterns, `external_directory` matches absolute paths, `task`
+   matches subagent names.
+
+### Two profiles, because `ask` behaves differently headlessly
+
+| | Interactive (`cc`) | Headless (`oc-run`) |
+|---|---|---|
+| `edit`, `bash` | **ask** — prompts in the TUI | `--auto` approves anything not denied |
+| Unanswered prompt | you answer it | **silent hang**, not a refusal |
+
+A single strict profile would look correct and silently break every scripted run.
+
+---
+
+## The 1.18.25 headless regression
+
+**`opencode run` hangs on 1.18.25.** pacman upgraded 1.18.23 → 1.18.25 on 2026-08-30 as part of a
+routine system update. Since then every headless run stops after `init` in the log, never creates a
+session, and produces no output until it is killed.
+
+**The TUI is unaffected** — it starts, renders, resolves all 8 `ollama/*` models and reports the
+right default. Only `run` is broken.
+
+Ruled out by bisection, so nobody repeats it:
+
+| Suspected | Result |
+|---|---|
+| The strict permission block | ✗ — the original all-allow config hangs identically |
+| MCP servers | ✗ — hangs with all 6 disabled, and with `--pure` |
+| Project state / the DB | ✗ — fresh directory hangs; `PRAGMA quick_check` = ok |
+| Stale processes holding a lock | ✗ — none |
+| Missing `@ai-sdk/openai-compatible` | ✗ — it *was* missing and installing it changed nothing |
+| Plugin version skew (1.18.23 vs binary 1.18.25) | ✗ — aligning to 1.18.25 changed nothing |
+
+`opencode models`, `agent list` and `session list` all still return instantly, so the binary and
+provider resolution are fine. The hang is specific to session creation in `run`.
+
+**Downgrade** — 1.18.23 is still in pacman's cache and is the version everything in this file was
+verified against:
+
+```fish
+sudo pacman -U /var/cache/pacman/pkg/opencode-1.18.23-1.1-x86_64_v3.pkg.tar.zst
+```
+
+Consider `IgnorePkg = opencode` in `/etc/pacman.conf` afterwards, so a routine `-Syu` does not
+silently reintroduce it.
 
 ---
 

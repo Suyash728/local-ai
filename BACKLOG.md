@@ -15,7 +15,7 @@ Status key: ⬜ not started · 🟡 in progress · ✅ done · ❌ declined
 
 | # | Item | Cost | Status | Assessment |
 |---|---|---|:--:|---|
-| A1 | **MCP servers** (filesystem, git, browser, code-exec) for OpenCode | ~0 GiB | ✅ | 6/6 connect, but local 20B can't drive MCP tools — see `AGENTIC-STACK.md` |
+| A1 | **MCP servers** (filesystem, git, browser, code-exec) for OpenCode | ~0 GiB | ✅ | Configured, then **disabled** — 20B cannot invoke them and they cost 5,043 tok/request. See `OPENCODE.md` |
 | A2 | **LocalAI** — OpenAI/Anthropic-compatible API, agents, MCP, web UI | ~2–5 GiB + a service | ✅ | Built at user request. Shares Ollama's GGUF by symlink; verified 11 s completion |
 | A3 | **LocalAGI** — agent platform, Responses-API compatible | similar | ✅ | Built at user request — from source (no binaries, Docker-first). Serves :3000. Binds 0.0.0.0 |
 | A4 | **CrewAI / LangGraph** multi-agent | ~1 GiB Python deps | ✅ | Both verified against local Ollama. Reliability caveat stands for real multi-agent work |
