@@ -42,6 +42,8 @@ ComfyUI/
 .webui_secret_key
 
 # --- Caches & generated output ---
+# deep_research reports + its SQLite store (generated, not docs)
+/research/
 .cache/
 output/
 temp/

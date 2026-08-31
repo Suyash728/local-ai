@@ -11,6 +11,7 @@ What is installed, where things live, and how to start them.
 **Training your own LoRAs:** `LORA-TRAINING.md`.
 **Talking to the Ollama models:** `OLLAMA-ACCESS.md`.
 **Giving a model live web access:** `WEB-ACCESS.md`.
+**Deep research + persistent memory:** `DEEP-RESEARCH.md`.
 **Agentic coding with local models:** `OPENCODE.md`.
 
 | | |
@@ -19,7 +20,7 @@ What is installed, where things live, and how to start them.
 | Track A — LLMs | ✅ **DONE & VERIFIED** (2026-08-23) |
 | Track B — ComfyUI | ✅ **DONE & VERIFIED** (2026-08-24) |
 | Track C — Video | ⏸ not built — ComfyUI support is already native, blocker is RAM (`ROADMAP.md`) |
-| Free disk | ~112 GiB |
+| Free disk | ~55 GiB |
 
 ---
 
